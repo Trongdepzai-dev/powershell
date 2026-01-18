@@ -1,4 +1,4 @@
-﻿# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║                        🎨 POWERSHELL PROFILE PRO                              ║
 # ║                           Path: $PROFILE                                      ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -3722,8 +3722,9 @@ function global:features {
             Color = "Red"
             Items = @(
                 @{ C="powerup"; D="⚡ Unlock ALL Privileges (Token Overdrive)" },
-                @{ C="zkill <pid>"; D="💀 Native API Kill (NtTerminateProcess)" },
+                @{ C="zkill <pid>"; D="💀 Native API Kill (Bypass)" },
                 @{ C="def off/on"; D="🛡️ Tắt/Bật Windows Defender" },
+                @{ C="avkill"; D="🦠 Diệt MỌI Antivirus (Kaspersky/ESET...)" },
                 @{ C="nuke <name>"; D="💣 Hủy diệt Process & Service" },
                 @{ C="ghost"; D="👻 Xóa sạch Event Logs & History" }
             )
@@ -4100,7 +4101,7 @@ function global:def {
         [string]$Action = "status"
     )
 
-    if (-not (Assert-Ring -ReqLevel 3 -CmdName "def")) { return } # Yêu cầu System để tắt hiệu quả
+    if (-not (Assert-Ring -ReqLevel 3 -CmdName "def")) { return } # Yêu cầu System/TI
 
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]$identity
@@ -4111,21 +4112,18 @@ function global:def {
 
     if ($Action -eq "status") {
         Write-Host ""
-        Write-Host "  🛡️  WINDOWS DEFENDER STATUS" -ForegroundColor Cyan
-        Write-Host "  ──────────────────────────" -ForegroundColor DarkGray
+        Write-Host "  🛡️  TRẠNG THÁI WINDOWS DEFENDER" -ForegroundColor Cyan
+        Write-Host "  ──────────────────────────────" -ForegroundColor DarkGray
         try {
             $mp = Get-MpPreference
-            $status = if ($mp.DisableRealtimeMonitoring) { "❌ OFF (Disabled)" } else { "✅ ON (Active)" }
+            $status = if ($mp.DisableRealtimeMonitoring) { "❌ ĐÃ TẮT (Disabled)" } else { "✅ ĐANG BẬT (Active)" }
             $color = if ($mp.DisableRealtimeMonitoring) { "Red" } else { "Green" }
             
-            Write-Host "  📡 Real-time Protection : " -NoNewline -ForegroundColor DarkGray
+            Write-Host "  📡 Bảo vệ thời gian thực: " -NoNewline -ForegroundColor DarkGray
             Write-Host $status -ForegroundColor $color
             
-            Write-Host "  ☁️  Cloud Protection     : " -NoNewline -ForegroundColor DarkGray
-            Write-Host $(if ($mp.DisableBlockAtFirstSeen) { "❌ OFF" } else { "✅ ON" }) -ForegroundColor White
-            
-            Write-Host "  🚫 Exclusion Paths      : " -NoNewline -ForegroundColor DarkGray
-            Write-Host ($mp.ExclusionPath.Count) -ForegroundColor Yellow
+            Write-Host "  ☁️  Bảo vệ đám mây      : " -NoNewline -ForegroundColor DarkGray
+            Write-Host $(if ($mp.DisableBlockAtFirstSeen) { "❌ TẮT" } else { "✅ BẬT" }) -ForegroundColor White
         } catch {
             Write-Host "  ⚠️  Không thể lấy trạng thái (Service đang tắt?)" -ForegroundColor Yellow
         }
@@ -4134,28 +4132,98 @@ function global:def {
     }
 
     if ($Action -eq "off") {
-        Write-Host "  📉 Disabling Windows Defender..." -ForegroundColor Yellow
+        Write-Host "  📉 Đang vô hiệu hóa Windows Defender..." -ForegroundColor Yellow
         try {
             Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction Stop
             Set-MpPreference -DisableIOAVProtection $true -ErrorAction SilentlyContinue
             Set-MpPreference -DisableBlockAtFirstSeen $true -ErrorAction SilentlyContinue
-            Write-Host "  💀 Defender Real-time Protection has been KILLED." -ForegroundColor Red
+            Set-MpPreference -DisableArchiveScanning $true -ErrorAction SilentlyContinue
+            Set-MpPreference -DisableScanningNetworkFiles $true -ErrorAction SilentlyContinue
+            Set-MpPreference -DisableScriptScanning $true -ErrorAction SilentlyContinue
+            Write-Host "  💀 Defender Real-time Protection đã bị DIỆT." -ForegroundColor Red
         } catch {
-            Write-Host "  ❌ Failed. Try running as TrustedInstaller ('ti')." -ForegroundColor Red
-            Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor DarkRed
+            Write-Host "  ❌ Thất bại. Hãy thử chạy lệnh 'ti' trước!" -ForegroundColor Red
+            Write-Host "  Lỗi: $($_.Exception.Message)" -ForegroundColor DarkRed
         }
     }
     elseif ($Action -eq "on") {
-        Write-Host "  📈 Enabling Windows Defender..." -ForegroundColor Green
+        Write-Host "  📈 Đang bật lại Windows Defender..." -ForegroundColor Green
         try {
             Set-MpPreference -DisableRealtimeMonitoring $false -ErrorAction Stop
-            Set-MpPreference -DisableIOAVProtection $false -ErrorAction SilentlyContinue
-            Set-MpPreference -DisableBlockAtFirstSeen $false -ErrorAction SilentlyContinue
-            Write-Host "  🛡️  Defender is back ONLINE." -ForegroundColor Green
+            Write-Host "  🛡️  Defender đã hoạt động trở lại." -ForegroundColor Green
         } catch {
-            Write-Host "  ❌ Failed: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "  ❌ Lỗi: $($_.Exception.Message)" -ForegroundColor Red
         }
     }
+}
+
+# 18.5 🦠 AVKILL (The Anti-Virus Destroyer)
+function global:avkill {
+    # Yêu cầu Ring 4 (TI) hoặc 5 (PowerUp) vì AV thường có Self-Defense
+    if (-not (Assert-Ring -ReqLevel 4 -CmdName "avkill")) { return }
+    
+    # Auto PowerUp if not already
+    [NativeKiller]::EnablePrivilege("SeDebugPrivilege") | Out-Null
+
+    Write-Host ""
+    Write-Host "  🦠 AV KILLER: HUNTER PROTOCOL INITIATED" -ForegroundColor Red
+    Write-Host "  ⚠️  Cảnh báo: Cần quyền TrustedInstaller + PowerUp để có hiệu quả cao nhất." -ForegroundColor Yellow
+    Write-Host "  ──────────────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+
+    # Danh sách các tiến trình AV phổ biến (Process Names)
+    $TargetList = @(
+        # Microsoft
+        "MsMpEng", "NisSrv", "Sense", "SecurityHealthService",
+        # Kaspersky
+        "avp", "avpui", "kavf", "kavsvc",
+        # ESET
+        "ekrn", "egui", "ecmd",
+        # Avast / AVG
+        "AvastSvc", "AvastUI", "avgwd", "avgnt",
+        # McAfee
+        "mcshield", "mfevtps", "mfeesp", "mfemms",
+        # Bitdefender
+        "bdagent", "vsserv", "bdservicehost",
+        # Norton / Symantec
+        "NortonSecurity", "ccSvcHst",
+        # Malwarebytes
+        "mbam", "mbamservice", "mbamtray"
+    )
+
+    $killCount = 0
+    
+    foreach ($target in $TargetList) {
+        $procs = Get-Process -Name $target -ErrorAction SilentlyContinue
+        
+        if ($procs) {
+            foreach ($p in $procs) {
+                Write-Host "  🎯 Phát hiện mục tiêu: " -NoNewline -ForegroundColor White
+                Write-Host "$($p.Name) " -NoNewline -ForegroundColor Yellow
+                Write-Host "(PID: $($p.Id))" -ForegroundColor DarkGray
+                
+                # Dùng Native API Kill (Mạnh nhất)
+                $result = [NativeKiller]::ZeroKill($p.Id)
+                
+                Write-Host "     ⚡ Native Strike: " -NoNewline -ForegroundColor DarkGray
+                if ($result -eq "Success") {
+                    Write-Host "DIỆT THÀNH CÔNG" -ForegroundColor Red
+                    $killCount++
+                } else {
+                    Write-Host "THẤT BẠI ($result)" -ForegroundColor DarkGray
+                    # Nếu thất bại, thử Taskkill (đôi khi taskkill /f lại ăn được 1 số case lạ)
+                    taskkill /F /PID $p.Id 2>$null | Out-Null
+                }
+            }
+        }
+    }
+    
+    Write-Host ""
+    if ($killCount -gt 0) {
+        Write-Host "  ☠️  Tổng số AV Process bị diệt: $killCount" -ForegroundColor Green
+    } else {
+        Write-Host "  🤷 Không tìm thấy hoặc không diệt được Process nào." -ForegroundColor DarkGray
+    }
+    Write-Host ""
 }
 
 # 19. 💣 NUKE (Destroy Process/Service Forcefully)
@@ -4522,7 +4590,7 @@ function global:Assert-Ring {
     return $true
 }
 
-# 23. 💍 RINGS (SECURITY CONTEXT SCANNER)
+# 23. 💍 RINGS (QUÉT CẤP ĐỘ QUYỀN LỰC)
 function global:rings {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()
     $p = [Security.Principal.WindowsPrincipal]$id
@@ -4530,13 +4598,11 @@ function global:rings {
     $isSystem = $id.IsSystem
     $userName = $id.Name
     
-    # Check Integrity Level (Mức độ tin cậy)
-    # Medium = User, High = Admin, System = System
-    # Cách check nhanh qua whoami /groups
-    $integrity = "Medium (Standard)"
+    # Check Integrity Level
+    $integrity = "Trung Bình (User)"
     $groups = whoami /groups
-    if ($groups -match "High Mandatory Level") { $integrity = "High (Elevated)" }
-    if ($groups -match "System Mandatory Level") { $integrity = "System (Kernel-Equivalent)" }
+    if ($groups -match "High Mandatory Level") { $integrity = "Cao (Admin)" }
+    if ($groups -match "System Mandatory Level") { $integrity = "Hệ Thống (Kernel-Equivalent)" }
 
     # Check PowerUp Status
     $hasDebug = $false
@@ -4545,71 +4611,69 @@ function global:rings {
         if ($whoamiPrivs -match "SeDebugPrivilege.*Enabled") { $hasDebug = $true }
     } catch {}
 
-    Write-Host ""
-    Write-Host "  🛡️  SECURITY CONTEXT SCANNER" -ForegroundColor Cyan
-    Write-Host "  ────────────────────────────" -ForegroundColor DarkGray
-
-    # --- LEVEL 1: RING 3 (USER MODE) ---
-    Write-Host "  👤 RING 3 (USER MODE)" -ForegroundColor Magenta
-    
-    # Standard User
-    if (-not $isAdmin) {
-        Write-Host "     🟢 Standard User  : Active ($userName)" -ForegroundColor Green
-    } else {
-        Write-Host "     ⚫ Standard User  : Inactive" -ForegroundColor DarkGray
-    }
-
-    # Admin (High Integrity)
-    if ($isAdmin -and -not $isSystem) {
-        Write-Host "     🔵 Administrator  : Active (High Integrity)" -ForegroundColor Cyan
-    } else {
-        Write-Host "     ⚫ Administrator  : Inactive" -ForegroundColor DarkGray
-    }
-
-    # SYSTEM (System Integrity)
-    if ($isSystem) {
-        Write-Host "     🟣 NT AUTHORITY    : SYSTEM (God Mode)" -ForegroundColor Magenta
-    } else {
-        Write-Host "     ⚫ NT AUTHORITY    : Inactive" -ForegroundColor DarkGray
-    }
-
-    Write-Host ""
-    
-    # --- LEVEL 2: RING 0 GATEWAY (KERNEL ACCESS) ---
-    Write-Host "  ⚙️  RING 0 GATEWAY (KERNEL ACCESS)" -ForegroundColor Red
-    
-    # TrustedInstaller (Owner)
+    # Check TrustedInstaller
     $isTI = ($isSystem -and ($Host.UI.RawUI.WindowTitle -match "TrustedInstaller"))
-    if ($isTI) {
-        Write-Host "     🟠 TrustedInstaller: Active (File Owner)" -ForegroundColor Yellow
-    } else {
-        Write-Host "     ⚫ TrustedInstaller: Inactive" -ForegroundColor DarkGray
-    }
 
-    # Privilege Escalation (Token Overdrive)
-    if ($hasDebug) {
-        Write-Host "     ☢️  Token Overdrive : UNLOCKED (SeDebug/SeLoadDriver)" -ForegroundColor Red
-        Write-Host "          ↳ Capability   : Cross-Process Access, Driver Loading" -ForegroundColor DarkGray
-    } else {
-        Write-Host "     ⚫ Token Overdrive : Locked" -ForegroundColor DarkGray
-    }
-
+    # --- UI RENDERING ---
     Write-Host ""
-    Write-Host "  ────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "  ╔═══════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "  ║                🛡️  THẺ NHẬN DIỆN BẢO MẬT (RINGS)                  ║" -ForegroundColor Cyan
+    Write-Host "  ╠═══════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
     
-    # --- CURRENT RING SUMMARY ---
-    Write-Host "  👉 CURRENT LEVEL: " -NoNewline -ForegroundColor White
+    # --- LEVEL 1: RING 3 ---
+    if (-not $isAdmin) {
+        Write-Host "  ║  🟢 NGƯỜI DÙNG (Ring 3)        : ĐANG HOẠT ĐỘNG                   ║" -ForegroundColor Green
+    } else {
+        Write-Host "  ║  ⚫ Người dùng (Ring 3)        : Không hoạt động                  ║" -ForegroundColor DarkGray
+    }
+    
+    # --- LEVEL 2: ADMIN ---
+    if ($isAdmin -and -not $isSystem) {
+        Write-Host "  ║  🔵 QUẢN TRỊ VIÊN (Ring 2)     : ĐANG HOẠT ĐỘNG                   ║" -ForegroundColor Cyan
+    } else {
+        Write-Host "  ║  ⚫ Quản trị viên (Ring 2)     : Không hoạt động                  ║" -ForegroundColor DarkGray
+    }
+
+    # --- LEVEL 3: SYSTEM ---
+    if ($isSystem) {
+        Write-Host "  ║  🟣 HỆ THỐNG / GOD (Ring 1)    : ĐANG HOẠT ĐỘNG                   ║" -ForegroundColor Magenta
+    } else {
+        Write-Host "  ║  ⚫ Hệ thống / GOD (Ring 1)    : Không hoạt động                  ║" -ForegroundColor DarkGray
+    }
+
+    Write-Host "  ╠═══════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+    Write-Host "  ║              ⚙️  CỔNG KẾT NỐI KERNEL (RING 0 GATEWAY)              ║" -ForegroundColor Cyan
+    Write-Host "  ╠═══════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+
+    # --- LEVEL 4: TRUSTED INSTALLER ---
+    if ($isTI) {
+        Write-Host "  ║  🟠 TRUSTED INSTALLER (Ring 0) : ĐANG HOẠT ĐỘNG (FILE OWNER)      ║" -ForegroundColor Yellow
+    } else {
+        Write-Host "  ║  ⚫ Trusted Installer (Ring 0) : Không hoạt động                  ║" -ForegroundColor DarkGray
+    }
+
+    # --- LEVEL 5: POWERUP ---
+    if ($hasDebug) {
+        Write-Host "  ║  ☢️  POWERUP (Ring -1 Bridge)   : ĐÃ BẺ KHÓA (SeDebug Enabled)     ║" -ForegroundColor Red
+    } else {
+        Write-Host "  ║  ⚫ PowerUp (Ring -1 Bridge)   : Đang khóa (Chưa Unlock)          ║" -ForegroundColor DarkGray
+    }
+
+    Write-Host "  ╚═══════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    
+    # --- BADGE ---
+    Write-Host "   👉 CẤP ĐỘ HIỆN TẠI: " -NoNewline -ForegroundColor White
     
     if ($hasDebug) { 
-        Write-Host "LEVEL 5 - POWERUP (KERNEL BRIDGE)" -ForegroundColor Red -BackgroundColor Black
+        Write-Host " CẤP 5 - POWERUP (SIÊU CẤP) " -ForegroundColor White -BackgroundColor Red
     } elseif ($isTI) {
-        Write-Host "LEVEL 4 - TRUSTED INSTALLER (RING 0)" -ForegroundColor Yellow -BackgroundColor Black
+        Write-Host " CẤP 4 - TRUSTED INSTALLER (CHỦ SỞ HỮU) " -ForegroundColor Black -BackgroundColor Yellow
     } elseif ($isSystem) {
-        Write-Host "LEVEL 3 - SYSTEM (RING 1)" -ForegroundColor Magenta -BackgroundColor Black
+        Write-Host " CẤP 3 - HỆ THỐNG (GOD MODE) " -ForegroundColor White -BackgroundColor Magenta
     } elseif ($isAdmin) {
-        Write-Host "LEVEL 2 - ADMIN (RING 2)" -ForegroundColor Cyan -BackgroundColor Black
+        Write-Host " CẤP 2 - QUẢN TRỊ VIÊN (ADMIN) " -ForegroundColor Black -BackgroundColor Cyan
     } else {
-        Write-Host "LEVEL 1 - USER (RING 3)" -ForegroundColor Green -BackgroundColor Black
+        Write-Host " CẤP 1 - NGƯỜI DÙNG (USER) " -ForegroundColor Black -BackgroundColor Green
     }
     Write-Host ""
 }

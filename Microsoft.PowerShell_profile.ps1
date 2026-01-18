@@ -2068,177 +2068,6 @@ function global:cleantemp {
         [Console]::CursorVisible = $true
     }
 }
-        }
-
-        # --- SYSTEM ---
-        Add-Target "System" "User Temp" "$env:TEMP"
-        Add-Target "System" "Crash Dumps" "$env:LOCALAPPDATA\CrashDumps"
-        Add-Target "System" "Error Reports" "$env:LOCALAPPDATA\Microsoft\Windows\WER"
-        Add-Target "System" "Recycle Bin" "RecycleBin" 
-        
-        if ($isAdmin) {
-            Add-Target "System" "Windows Temp" "$env:Windir\Temp"
-            Add-Target "System" "Prefetch" "$env:Windir\Prefetch"
-            Add-Target "System" "Win Update" "$env:Windir\SoftwareDistribution\Download"
-            Add-Target "System" "Event Logs" "EventLogs" -Cmd { Wevtutil el | ForEach-Object { Wevtutil cl "$_" } 2>$null }
-        }
-
-        # --- BROWSERS & APPS ---
-        Add-Target "Browser" "Chrome Cache" "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache"
-        Add-Target "Browser" "Edge Cache" "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache"
-        Add-Target "Apps" "Discord Cache" "$env:APPDATA\discord\Cache"
-        Add-Target "Apps" "VS Code Cache" "$env:APPDATA\Code\Cache"
-        Add-Target "Apps" "Spotify Cache" "$env:LOCALAPPDATA\Spotify\Storage"
-
-        # --- DEV TOOLS ---
-        if (Get-Command npm -ErrorAction SilentlyContinue) { Add-Target "Dev" "NPM Cache" "" -Cmd { npm cache clean --force 2>&1 | Out-Null } }
-        if (Get-Command yarn -ErrorAction SilentlyContinue) { Add-Target "Dev" "Yarn Cache" "" -Cmd { yarn cache clean 2>&1 | Out-Null } }
-        if (Get-Command pip -ErrorAction SilentlyContinue) { Add-Target "Dev" "Pip Cache" "" -Cmd { pip cache purge 2>&1 | Out-Null } }
-        if (Get-Command docker -ErrorAction SilentlyContinue) { Add-Target "Dev" "Docker Build" "" -Cmd { docker builder prune -f 2>&1 | Out-Null } }
-
-        # === 2. SCANNING PHASE ===
-        $i = 0
-        foreach ($t in $targets) {
-            $i++
-            Write-Progress -Activity "Scanning System" -Status "Analyzing $($t.Name)..." -PercentComplete (($i / $targets.Count) * 100)
-            
-            if ($t.Path -and $t.Path -ne "RecycleBin" -and (Test-Path $t.Path)) {
-                try {
-                    # FIX: Added -File to avoid folder length error
-                    $stats = Get-ChildItem -Path $t.Path -Recurse -Force -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum
-                    $t.Size = if ($stats.Sum) { $stats.Sum } else { 0 }
-                } catch { $t.Size = 0 }
-            } elseif ($t.Path -eq "RecycleBin") {
-                try {
-                    $t.Size = (Get-ChildItem "C:\`$Recycle.Bin" -Recurse -Force -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
-                } catch { $t.Size = 0 }
-            }
-            $t.SizeStr = Format-Size -Bytes $t.Size
-            if ($t.Size -eq 0 -and $t.Group -ne "Dev" -and $t.Group -ne "System") { $t.Selected = $false }
-        }
-        Write-Progress -Activity "Scanning System" -Completed
-
-        # === 3. INTERACTIVE MENU ===
-        $idx = 0
-        $startView = 0
-        $maxView = 15
-        $doneSelecting = $false
-        
-        while (-not $doneSelecting) {
-            Clear-Host
-            Write-Host ""
-            Write-Host "  🌌 BLACK HOLE CLEANER" -ForegroundColor Magenta
-            Write-Host "  Select targets (Space: Toggle, Enter: Clean)" -ForegroundColor DarkGray
-            Write-Host "  ────────────────────────────────────────────" -ForegroundColor DarkGray
-            
-            $totalSelSize = ($targets | Where-Object Selected | Measure-Object -Property Size -Sum).Sum
-            Write-Host "  📦 Potential Reclaim: $(Format-Size $totalSelSize)" -ForegroundColor Yellow
-            Write-Host ""
-            Write-Host "     [X]  TARGET                  SIZE        TYPE" -ForegroundColor Cyan
-            
-            $endView = [math]::Min($targets.Count, $startView + $maxView)
-            
-            for ($k = $startView; $k -lt $endView; $k++) {
-                $t = $targets[$k]
-                $isCursor = ($k -eq $idx)
-                
-                $prefix = if ($isCursor) { "👉" } else { "  " }
-                $check  = if ($t.Selected) { "[x]" } else { "[ ]" }
-                
-                $color = if ($isCursor) { "White" } elseif ($t.Selected) { "Green" } else { "DarkGray" }
-                $bgColor = if ($isCursor) { "DarkGray" } else { "Black" }
-                
-                Write-Host "$prefix $check " -NoNewline -ForegroundColor $color -BackgroundColor $bgColor
-                Write-Host ("{0,-23}" -f $t.Name) -NoNewline -ForegroundColor $color -BackgroundColor $bgColor
-                
-                $sizeCol = if ($t.Size -gt 1GB) { "Red" } elseif ($t.Size -gt 100MB) { "Yellow" } else { "Gray" }
-                Write-Host ("{0,10}" -f $t.SizeStr) -NoNewline -ForegroundColor $sizeCol -BackgroundColor $bgColor
-                Write-Host ("   {0}" -f $t.Group) -ForegroundColor "DarkCyan" -BackgroundColor $bgColor
-            }
-            
-            Write-Host ""
-            Write-Host "  ↑↓:Move  Space:Toggle  A:All  N:None  Enter:CLEAN  Esc:Quit" -ForegroundColor DarkGray
-
-            $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-            switch ($key.VirtualKeyCode) {
-                38 { if ($idx -gt 0) { $idx-- }; if ($idx -lt $startView) { $startView-- } }
-                40 { if ($idx -lt $targets.Count - 1) { $idx++ }; if ($idx -ge $startView + $maxView) { $startView++ } }
-                32 { $targets[$idx].Selected = -not $targets[$idx].Selected }
-                65 { $targets | ForEach-Object { $_.Selected = $true } }
-                78 { $targets | ForEach-Object { $_.Selected = $false } }
-                13 { $doneSelecting = $true }
-                27 { [Console]::CursorVisible = $true; return }
-            }
-        }
-
-        # === 4. CLEANING PHASE ===
-        Clear-Host
-        Write-Host ""
-        Write-Host "  🚀 INITIATING BLACK HOLE SEQUENCE..." -ForegroundColor Cyan
-        Write-Host ""
-        
-        $selectedTargets = $targets | Where-Object Selected
-        $count = 0
-        $cleanedSize = 0
-        
-        foreach ($t in $selectedTargets) {
-            $count++
-            $pct = [math]::Round(($count / $selectedTargets.Count) * 100)
-            $bar = "█" * [math]::Floor($pct * 0.3) + "░" * (30 - [math]::Floor($pct * 0.3))
-            
-            Write-Host "`r  [$bar] $pct% " -NoNewline -ForegroundColor Cyan
-            Write-Host "Cleaning: $($t.Name)... " -NoNewline -ForegroundColor White
-            
-            # Reset locked counter for this target
-            $lockedCount = 0
-            
-            try {
-                if ($t.Path -eq "RecycleBin") {
-                    Clear-RecycleBin -Force -ErrorAction SilentlyContinue | Out-Null
-                }
-                elseif ($t.Cmd) {
-                    Invoke-Command -ScriptBlock $t.Cmd
-                }
-                elseif ($t.Path) {
-                    if ($t.Name -like "*Win Update*") { Stop-Service wuauserv -ErrorAction SilentlyContinue }
-                    
-                    # FORCE DELETE LOGIC (Deep Clean with Consolidated Report)
-                    Get-ChildItem -Path $t.Path -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {
-                        try {
-                            Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop
-                        } catch {
-                            # Increment counter instead of spamming console
-                            $lockedCount++
-                        }
-                    }
-                    
-                    if ($t.Name -like "*Win Update*") { Start-Service wuauserv -ErrorAction SilentlyContinue }
-                }
-                
-                if ($t.Path -ne "RecycleBin" -and $t.Path) { $cleanedSize += $t.Size }
-                
-                # Report locked files summary if any
-                if ($lockedCount -gt 0) {
-                    Write-Host "`n    ⚠️  Skipped $lockedCount locked files" -ForegroundColor Yellow
-                }
-                
-            } catch {
-                Write-Host "⚠️ Error processing $($t.Name)" -ForegroundColor Red
-            }
-        }
-
-        ipconfig /flushdns | Out-Null
-
-        Write-Host "`r  [$("█" * 30)] 100% " -NoNewline -ForegroundColor Green
-        Write-Host "DONE!                       " -ForegroundColor Green
-        Write-Host ""
-        Write-Host "  ✨ Disk Space Reclaimed: $(Format-Size $cleanedSize)" -ForegroundColor Yellow
-        Write-Host ""
-
-    } finally {
-        [Console]::CursorVisible = $true
-    }
-}
 
 # 📄 TẠO NHIỀU FILE (Batch File Creator)
 function global:mkfile {
@@ -3862,6 +3691,8 @@ function global:features {
             @{ C="cd -"; D="Go back to previous directory" },
             @{ C="mkcd <dir>"; D="Create & enter directory" },
             @{ C="mkfile <path>"; D="Create file with parent dirs" },
+            @{ C="nano <file>"; D="Smart Editor (Micro/Nano/Notepad)" },
+            @{ C="antigravity"; D="Teleport files (Advanced Copy)" },
             @{ C="compress <path>"; D="Smart zip compressor" },
             @{ C="extract <file>"; D="Smart unzip/untar/unrar" },
             @{ C="tree2 [depth]"; D="Beautiful tree view" },
@@ -3918,6 +3749,8 @@ function global:features {
         )
         "🧰 SYSTEM TOOLS" = @(
             @{ C="sudo"; D="Restart as Administrator" },
+            @{ C="god"; D="Switch to SYSTEM (God Mode)" },
+            @{ C="ti"; D="TrustedInstaller (Highest Privilege)" },
             @{ C="drop"; D="Drop to user mode (Ring 3)" },
             @{ C="reload"; D="Reload PowerShell profile" },
             @{ C="editprofile (ep)"; D="Edit profile in code/notepad" },
@@ -3927,6 +3760,13 @@ function global:features {
             @{ C="upgrade"; D="Upgrade all packages" },
             @{ C="star"; D="⭐ Lock window (can't close with X)" },
             @{ C="unstar"; D="🔓 Unlock window (allow close)" }
+        )
+        "☢️ NUCLEAR OPTIONS" = @(
+            @{ C="powerup"; D="Enable ALL Privileges (SeDebug/SeLoadDriver...)" },
+            @{ C="zkill <name/pid>"; D="Native API Kill (NtTerminateProcess)" },
+            @{ C="def off/on"; D="Disable/Enable Windows Defender" },
+            @{ C="nuke <name>"; D="Destroy Process AND Service (Force)" },
+            @{ C="ghost"; D="Wipe all Event Logs & History" }
         )
         "🐳 DOCKER (if installed)" = @(
             @{ C="dps"; D="Running containers" },
@@ -4217,119 +4057,416 @@ function global:god {
     Write-Host ""
 }
 
-# 17. ☢️ KERNEL MODE (SYSTEM + RealTime + SeDebug)
-function global:kernel {
+#region ═══════════════════════════════════════════════════════════════════════════
+#        ☢️ NUCLEAR ADMIN TOOLS (HANDLE WITH CARE)
+#endregion ════════════════════════════════════════════════════════════════════════
+
+# 18. 🛡️ DEFENDER MANAGER (Toggle AV)
+function global:def {
+    param(
+        [Parameter(Mandatory=$false)]
+        [ValidateSet("on", "off", "status")]
+        [string]$Action = "status"
+    )
+
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]$identity
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        Write-Host "  ❌ Cần quyền Administrator để kích hoạt Kernel Mode!" -ForegroundColor Red
+        Write-Host "  ❌ Yêu cầu quyền Administrator/SYSTEM/TrustedInstaller!" -ForegroundColor Red
+        return
+    }
+
+    if ($Action -eq "status") {
+        Write-Host ""
+        Write-Host "  🛡️  WINDOWS DEFENDER STATUS" -ForegroundColor Cyan
+        Write-Host "  ──────────────────────────" -ForegroundColor DarkGray
+        try {
+            $mp = Get-MpPreference
+            $status = if ($mp.DisableRealtimeMonitoring) { "❌ OFF (Disabled)" } else { "✅ ON (Active)" }
+            $color = if ($mp.DisableRealtimeMonitoring) { "Red" } else { "Green" }
+            
+            Write-Host "  📡 Real-time Protection : " -NoNewline -ForegroundColor DarkGray
+            Write-Host $status -ForegroundColor $color
+            
+            Write-Host "  ☁️  Cloud Protection     : " -NoNewline -ForegroundColor DarkGray
+            Write-Host $(if ($mp.DisableBlockAtFirstSeen) { "❌ OFF" } else { "✅ ON" }) -ForegroundColor White
+            
+            Write-Host "  🚫 Exclusion Paths      : " -NoNewline -ForegroundColor DarkGray
+            Write-Host ($mp.ExclusionPath.Count) -ForegroundColor Yellow
+        } catch {
+            Write-Host "  ⚠️  Không thể lấy trạng thái (Service đang tắt?)" -ForegroundColor Yellow
+        }
+        Write-Host ""
+        return
+    }
+
+    if ($Action -eq "off") {
+        Write-Host "  📉 Disabling Windows Defender..." -ForegroundColor Yellow
+        try {
+            Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction Stop
+            Set-MpPreference -DisableIOAVProtection $true -ErrorAction SilentlyContinue
+            Set-MpPreference -DisableBlockAtFirstSeen $true -ErrorAction SilentlyContinue
+            Write-Host "  💀 Defender Real-time Protection has been KILLED." -ForegroundColor Red
+        } catch {
+            Write-Host "  ❌ Failed. Try running as TrustedInstaller ('ti')." -ForegroundColor Red
+            Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor DarkRed
+        }
+    }
+    elseif ($Action -eq "on") {
+        Write-Host "  📈 Enabling Windows Defender..." -ForegroundColor Green
+        try {
+            Set-MpPreference -DisableRealtimeMonitoring $false -ErrorAction Stop
+            Set-MpPreference -DisableIOAVProtection $false -ErrorAction SilentlyContinue
+            Set-MpPreference -DisableBlockAtFirstSeen $false -ErrorAction SilentlyContinue
+            Write-Host "  🛡️  Defender is back ONLINE." -ForegroundColor Green
+        } catch {
+            Write-Host "  ❌ Failed: $($_.Exception.Message)" -ForegroundColor Red
+        }
+    }
+}
+
+# 19. 💣 NUKE (Destroy Process/Service Forcefully)
+function global:nuke {
+    param([Parameter(Mandatory)][string]$Name)
+
+    Write-Host "  💣 NUKING TARGET: $Name" -ForegroundColor Red
+    
+    # 1. Try killing as Process
+    $procs = Get-Process -Name $Name -ErrorAction SilentlyContinue
+    if ($procs) {
+        foreach ($p in $procs) {
+            Write-Host "  🔫 Killing Process: $($p.Name) (PID: $($p.Id))..." -NoNewline -ForegroundColor Yellow
+            try {
+                Stop-Process -Id $p.Id -Force -ErrorAction Stop
+                Write-Host " DEAD." -ForegroundColor Red
+            } catch {
+                # Fallback to taskkill (mạnh hơn Stop-Process)
+                taskkill /F /PID $p.Id | Out-Null
+                if (Get-Process -Id $p.Id -ErrorAction SilentlyContinue) {
+                    Write-Host " FAILED." -ForegroundColor DarkGray
+                } else {
+                    Write-Host " DESTROYED (via taskkill)." -ForegroundColor Red
+                }
+            }
+        }
+    } else {
+        Write-Host "  ⚪ No active process found." -ForegroundColor DarkGray
+    }
+
+    # 2. Try killing as Service (Disable + Stop)
+    $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+    if (-not $svc) { $svc = Get-Service -DisplayName $Name -ErrorAction SilentlyContinue }
+    
+    if ($svc) {
+        Write-Host "  ⚙️  Found Service: $($svc.Name) ($($svc.Status))" -ForegroundColor Cyan
+        if ($svc.Status -ne 'Stopped') {
+            Write-Host "  🔻 Stopping service..." -NoNewline -ForegroundColor Yellow
+            try {
+                Set-Service -Name $svc.Name -StartupType Disabled -ErrorAction SilentlyContinue
+                Stop-Service -Name $svc.Name -Force -ErrorAction Stop
+                Write-Host " STOPPED & DISABLED." -ForegroundColor Red
+            } catch {
+                # Force kill via SC & Taskkill if access denied
+                sc.exe config $svc.Name start= disabled | Out-Null
+                $svcPID = (Get-CimInstance Win32_Service -Filter "Name='$($svc.Name)'").ProcessId
+                if ($svcPID -gt 0) {
+                    taskkill /F /PID $svcPID | Out-Null
+                    Write-Host " FORCE KILLED (PID $svcPID)." -ForegroundColor Red
+                } else {
+                    Write-Host " FAILED (Access Denied? Use 'ti')." -ForegroundColor DarkRed
+                }
+            }
+        } else {
+            Write-Host "  💤 Service already stopped." -ForegroundColor DarkGray
+        }
+    }
+}
+
+# 20. 👻 GHOST (Clear Logs/Tracks)
+function global:ghost {
+    if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Write-Host "  ❌ Admin rights required to clear logs." -ForegroundColor Red
         return
     }
 
     Write-Host ""
-    Write-Host "  ☢️  INITIATING KERNEL-LEVEL ACCESS..." -ForegroundColor Red
-    Write-Host "  ──────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "  👻 GHOST PROTOCOL (CLEARING LOGS)" -ForegroundColor DarkGray
+    Write-Host "  ─────────────────────────────────" -ForegroundColor DarkGray
 
-    # Kiểm tra PsExec
-    $binDir = "$HOME\Documents\WindowsPowerShell\Bin"
-    $psexec = "$binDir\PsExec64.exe"
+    $logs = Wevtutil el
+    $total = $logs.Count
+    $i = 0
     
-    if (-not (Test-Path $psexec)) {
-        if (Get-Command PsExec.exe -ErrorAction SilentlyContinue) {
-            $psexec = "PsExec.exe"
-        } else {
-            Write-Host "  🛠️  Đang tải PsExec..." -ForegroundColor Yellow
-            if (-not (Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir -Force | Out-Null }
-            try {
-                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-                Invoke-WebRequest -Uri "https://live.sysinternals.com/PsExec64.exe" -OutFile $psexec
-            } catch {
-                Write-Host "  ❌ Lỗi tải PsExec." -ForegroundColor Red
-                return
-            }
-        }
-    }
-
-    Write-Host "  🚀 Launching High-Privilege Shell..." -ForegroundColor Red
-    Write-Host "     Mode: SYSTEM (Ring 3 Apex)" -ForegroundColor Gray
-    Write-Host "     Priority: REALTIME (Ring 0 Priority)" -ForegroundColor Gray
-    Write-Host "     Privileges: SeDebugPrivilege (Enabled)" -ForegroundColor Gray
-    
-    # Script để chạy bên trong cửa sổ mới
-    $innerScript = {
-        $Host.UI.RawUI.WindowTitle = '☢️ KERNEL MODE (SYSTEM | REALTIME)'
-        $Host.UI.RawUI.BackgroundColor = 'Black'
-        $Host.UI.RawUI.ForegroundColor = 'Red'
-        Clear-Host
+    foreach ($log in $logs) {
+        $i++
+        $pct = [math]::Round(($i / $total) * 100)
+        Write-Progress -Activity "Wiping Logs" -Status "$log" -PercentComplete $pct
         
-        Write-Host "`n  ☢️  WARNING: YOU HAVE ABSOLUTE POWER." -ForegroundColor Red -BackgroundColor Black
-        Write-Host "  ☢️  SYSTEM INTEGRITY PROTECTION IS BYPASSED." -ForegroundColor Red -BackgroundColor Black
-        Write-Host "  💀 TREAD LIGHTLY.`n" -ForegroundColor DarkRed
-        
-        # Enable SeDebugPrivilege (C# Injection)
-        $def = @"
-        using System;
-        using System.Runtime.InteropServices;
-        public class TokenManipulator {
-            [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
-            internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall, ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);
-            [DllImport("kernel32.dll", ExactSpelling = true)]
-            internal static extern IntPtr GetCurrentProcess();
-            [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
-            internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr phtok);
-            [DllImport("advapi32.dll", SetLastError = true)]
-            internal static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);
-            [StructLayout(LayoutKind.Sequential, Pack = 1)]
-            internal struct TokPriv1Luid {
-                public int Count;
-                public long Luid;
-                public int Attr;
-            }
-            internal const int SE_PRIVILEGE_ENABLED = 0x00000002;
-            internal const int TOKEN_QUERY = 0x00000008;
-            internal const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;
-            public static bool EnablePrivilege(string privilege) {
-                long luid = 0;
-                if (!LookupPrivilegeValue(null, privilege, ref luid)) return false;
-                IntPtr hProc = GetCurrentProcess();
-                IntPtr hToken = IntPtr.Zero;
-                OpenProcessToken(hProc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref hToken);
-                TokPriv1Luid tp = new TokPriv1Luid();
-                tp.Count = 1;
-                tp.Luid = luid;
-                tp.Attr = SE_PRIVILEGE_ENABLED;
-                return AdjustTokenPrivileges(hToken, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
-            }
-        }
-"@
+        # Chỉ xóa log có dữ liệu để tiết kiệm thời gian
         try {
-            Add-Type -TypeDefinition $def -PassThru | Out-Null
-            [TokenManipulator]::EnablePrivilege("SeDebugPrivilege") | Out-Null
-            [TokenManipulator]::EnablePrivilege("SeTakeOwnershipPrivilege") | Out-Null
-            [TokenManipulator]::EnablePrivilege("SeBackupPrivilege") | Out-Null
-            [TokenManipulator]::EnablePrivilege("SeRestorePrivilege") | Out-Null
-            Write-Host "  ✅ SeDebugPrivilege......GRANTED" -ForegroundColor Green
-            Write-Host "  ✅ SeTakeOwnership.......GRANTED" -ForegroundColor Green
-        } catch {
-            Write-Host "  ⚠️  Could not adjust privileges via C# (Expected if already active)" -ForegroundColor DarkGray
-        }
+             Wevtutil cl "$log" 2>$null
+        } catch {}
+    }
+    Write-Progress -Activity "Wiping Logs" -Completed
+    
+    # Clear PowerShell History
+    Clear-History
+    Remove-Item (Get-PSReadlineOption).HistorySavePath -ErrorAction SilentlyContinue
+    
+    Write-Host "  ✨ All Event Logs CLEARED." -ForegroundColor Green
+    Write-Host "  ✨ PowerShell History WIPED." -ForegroundColor Green
+    Write-Host "  🕶️  System is clean." -ForegroundColor Cyan
+    Write-Host ""
+}
+
+#region ═══════════════════════════════════════════════════════════════════════════
+#        💀 KERNEL-LEVEL BRIDGE (NATIVE API CALLS)
+#endregion ════════════════════════════════════════════════════════════════════════
+
+# C# Bridge để gọi Native API (ntdll.dll) và Token Manipulation
+if (-not ([System.Management.Automation.PSTypeName]'NativeKiller').Type) {
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+using System.Diagnostics;
+
+public static class NativeKiller {
+    [DllImport("ntdll.dll")]
+    public static extern uint NtTerminateProcess(IntPtr ProcessHandle, int ExitStatus);
+
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, int dwProcessId);
+
+    [DllImport("kernel32.dll")]
+    public static extern bool CloseHandle(IntPtr hObject);
+
+    [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
+    internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall, ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);
+
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    internal static extern IntPtr GetCurrentProcess();
+
+    [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
+    internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr phtok);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    internal static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    internal struct TokPriv1Luid {
+        public int Count;
+        public long Luid;
+        public int Attr;
+    }
+
+    // Các hằng số quyền hạn
+    internal const int SE_PRIVILEGE_ENABLED = 0x00000002;
+    internal const int TOKEN_QUERY = 0x00000008;
+    internal const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;
+    
+    // Enable Privilege (SeDebugPrivilege is key for killing system processes)
+    public static bool EnablePrivilege(string privilege) {
+        try {
+            IntPtr hproc = GetCurrentProcess();
+            IntPtr htok = IntPtr.Zero;
+            if (!OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok)) return false;
+
+            TokPriv1Luid tp;
+            tp.Count = 1;
+            tp.Luid = 0;
+            tp.Attr = SE_PRIVILEGE_ENABLED;
+            
+            if (!LookupPrivilegeValue(null, privilege, ref tp.Luid)) return false;
+
+            if (!AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero)) return false;
+            
+            return true;
+        } catch { return false; }
+    }
+
+    public static string ZeroKill(int pid) {
+        // PROCESS_TERMINATE = 0x0001
+        IntPtr hProc = OpenProcess(0x0001, false, pid);
         
-        function prompt { "╭─[💀 KERNEL] `n╰─➤ " }
+        if (hProc == IntPtr.Zero) {
+            return "Failed to open handle (Protected Process?)";
+        }
+
+        // Gọi trực tiếp NT API -> Bỏ qua win32 checks
+        uint status = NtTerminateProcess(hProc, 0);
+        CloseHandle(hProc);
+
+        if (status == 0) return "Success"; // STATUS_SUCCESS
+        return "NtStatus Error: " + status;
+    }
+}
+"@
+}
+
+# 21. ⚡ POWERUP (TITAN EDITION - ENABLE ALL 36 PRIVILEGES)
+function global:powerup {
+    Write-Host ""
+    Write-Host "  ⚡ POWERUP PROTOCOL: TITAN EDITION" -ForegroundColor Magenta
+    Write-Host "  ─────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "  🔓 Attempting to UNLOCK ALL Windows Privileges..." -ForegroundColor Cyan
+    Write-Host ""
+
+    # Danh sách đầy đủ 36 quyền của Windows (The God List)
+    $GodPrivileges = @(
+        # --- Critical / System Core ---
+        "SeDebugPrivilege",             # Debug programs (God mode for processes)
+        "SeTcbPrivilege",               # Act as part of the operating system
+        "SeAssignPrimaryTokenPrivilege",# Replace a process level token
+        "SeLoadDriverPrivilege",        # Load and unload device drivers
+        "SeBackupPrivilege",            # Back up files and directories (Read All)
+        "SeRestorePrivilege",           # Restore files and directories (Write All)
+        "SeTakeOwnershipPrivilege",     # Take ownership of files or other objects
+        "SeCreateTokenPrivilege",       # Create a token object
+        "SeImpersonatePrivilege",       # Impersonate a client after authentication
+        "SeRelabelPrivilege",           # Modify an object label
+        
+        # --- System Management ---
+        "SeSystemEnvironmentPrivilege", # Modify firmware environment values
+        "SeSystemProfilePrivilege",     # Profile system performance
+        "SeSystemtimePrivilege",        # Change the system time
+        "SeShutdownPrivilege",          # Shut down the system
+        "SeUndockPrivilege",            # Remove computer from docking station
+        "SeManageVolumePrivilege",      # Perform volume maintenance tasks
+        "SeLockMemoryPrivilege",        # Lock pages in memory
+        "SeIncreaseBasePriorityPrivilege", # Increase scheduling priority
+        "SeIncreaseQuotaPrivilege",     # Adjust memory quotas for a process
+        
+        # --- Security & Audit ---
+        "SeSecurityPrivilege",          # Manage auditing and security log
+        "SeAuditPrivilege",             # Generate security audits
+        "SeChangeNotifyPrivilege",      # Bypass traverse checking
+        "SeCreateGlobalPrivilege",      # Create global objects
+        "SeCreatePagefilePrivilege",    # Create a pagefile
+        "SeCreatePermanentPrivilege",   # Create permanent shared objects
+        "SeCreateSymbolicLinkPrivilege",# Create symbolic links
+        "SeDelegateSessionUserImpersonatePrivilege",
+        "SeEnableDelegationPrivilege",
+        "SeMachineAccountPrivilege",    # Add workstations to domain
+        "SeProfileSingleProcessPrivilege",
+        "SeRemoteShutdownPrivilege",    # Force shutdown from a remote system
+        "SeSyncAgentPrivilege",
+        "SeTimeZonePrivilege",
+        "SeTrustedCredManAccessPrivilege"
+    )
+
+    $successCount = 0
+    $failCount = 0
+
+    foreach ($p in $GodPrivileges) {
+        # Visual delay for effect (can be removed for speed)
+        # Start-Sleep -Milliseconds 10 
+        
+        if ([NativeKiller]::EnablePrivilege($p)) {
+            $status = "✅ ENABLED"
+            $color = "Green"
+            $successCount++
+        } else {
+            $status = "❌ DENIED "
+            $color = "DarkGray"
+            $failCount++
+        }
+
+        # Hiển thị dạng bảng Matrix 2 cột
+        Write-Host "  │ " -NoNewline -ForegroundColor DarkGray
+        Write-Host ("{0,-35}" -f $p) -NoNewline -ForegroundColor White
+        Write-Host "│ " -NoNewline -ForegroundColor DarkGray
+        Write-Host $status -ForegroundColor $color
+    }
+
+    Write-Host ""
+    Write-Host "  ─────────────────────────────────" -ForegroundColor DarkGray
+    
+    if ($successCount -ge 5) {
+        Write-Host "  🔥 OVERDRIVE COMPLETE." -ForegroundColor Magenta
+    } else {
+        Write-Host "  ⚠️  LIMITED POWER." -ForegroundColor Yellow
+        Write-Host "  💡 Tip: Run as 'ti' (TrustedInstaller) or 'god' (System) to unlock more." -ForegroundColor DarkGray
     }
     
-    # Chuyển scriptblock thành string base64 để truyền qua cmd an toàn
-    $bytes = [System.Text.Encoding]::Unicode.GetBytes($innerScript.ToString())
-    $encoded = [Convert]::ToBase64String($bytes)
-    $cmd = "powershell.exe -NoExit -EncodedCommand $encoded"
-
-    try {
-        # -s: System, -i: Interactive, -d: Don't wait, -realtime: Realtime Priority
-        Start-Process -FilePath $psexec -ArgumentList "-s", "-i", "-d", "-realtime", $cmd -Verb RunAs -WindowStyle Normal
-        Write-Host "  ✨ Shell deployed." -ForegroundColor Red
-    } catch {
-        Write-Host "  ❌ Lỗi khởi chạy: $_" -ForegroundColor Red
-    }
+    Write-Host "  📊 Result: " -NoNewline -ForegroundColor Cyan
+    Write-Host "$successCount Unlocked" -NoNewline -ForegroundColor Green
+    Write-Host " / " -NoNewline -ForegroundColor DarkGray
+    Write-Host "$failCount Locked" -ForegroundColor Red
     Write-Host ""
+}
+
+# 22. 💀 ZKILL (Native API Terminator)
+function global:zkill {
+    param([Parameter(Mandatory)][string]$Name)
+
+    # Tự động PowerUp trước khi giết
+    [NativeKiller]::EnablePrivilege("SeDebugPrivilege") | Out-Null
+
+    Write-Host "  💀 ZERO KILL (Native API): $Name" -ForegroundColor Magenta
+    
+    $procs = Get-Process -Name $Name -ErrorAction SilentlyContinue
+    if (-not $procs) { 
+        # Thử tìm theo ID nếu input là số
+        if ($Name -match "^\d+$") {
+             $procs = Get-Process -Id $Name -ErrorAction SilentlyContinue
+        }
+    }
+
+    if ($procs) {
+        foreach ($p in $procs) {
+            Write-Host "  Target: $($p.Name) (PID: $($p.Id))..." -NoNewline -ForegroundColor White
+            
+            # Gọi hàm C# Native
+            $result = [NativeKiller]::ZeroKill($p.Id)
+            
+            if ($result -eq "Success") {
+                Write-Host " TERMINATED." -ForegroundColor Red
+            } else {
+                Write-Host " FAILED ($result)." -ForegroundColor DarkGray
+                # Fallback: Nếu Native API thất bại (do PPL), gợi ý TrustedInstaller
+                if ($result -match "Protected") {
+                     Write-Host "  🔒 Target is Protected (PPL). Use 'ti' mode first!" -ForegroundColor Yellow
+                }
+            }
+        }
+    } else {
+        Write-Host "  ⚪ Process not found." -ForegroundColor DarkGray
+    }
+}
+
+# 17. 🛡️ TRUSTED INSTALLER (HIGHER THAN KERNEL/SYSTEM)
+function global:ti {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [Security.Principal.WindowsPrincipal]$identity
+    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Write-Host "  ❌ Yêu cầu quyền Administrator trước!" -ForegroundColor Red
+        return
+    }
+
+    Write-Host ""
+    Write-Host "  🛡️  TRUSTED INSTALLER MODE (The 'Real' God Mode)" -ForegroundColor Cyan
+    Write-Host "  ────────────────────────────────────────────────" -ForegroundColor DarkGray
+    
+    # Try to find NSudo (common tool for this)
+    $nsudoPath = Get-Command "NSudo.exe" -ErrorAction SilentlyContinue
+    if (-not $nsudoPath) {
+        $nsudoPath = Get-Command "NSudoLG.exe" -ErrorAction SilentlyContinue
+    }
+
+    if ($nsudoPath) {
+        Write-Host "  🚀 Launching via NSudo..." -ForegroundColor Green
+        Start-Process $nsudoPath.Source -ArgumentList "-U:T -P:E powershell.exe" -Verb RunAs
+        return
+    }
+    
+    # If no tool, explain and offer SYSTEM
+    Write-Host "  ⚠️  TrustedInstaller requires external tools (NSudo/AdvancedRun)." -ForegroundColor Yellow
+    Write-Host "  💡 SYSTEM (God Mode) is the highest native privilege available." -ForegroundColor White
+    Write-Host ""
+    $choice = Read-Host "  👉 Launch SYSTEM mode instead? (y/n)"
+    if ($choice -eq 'y') {
+        god
+    }
 }
 
 # --- END OF PROFILE ---

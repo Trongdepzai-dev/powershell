@@ -1,4 +1,4 @@
-# ╔══════════════════════════════════════════════════════════════════════════════╗
+﻿# ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║                        🎨 POWERSHELL PROFILE PRO                              ║
 # ║                           Path: $PROFILE                                      ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -3669,149 +3669,180 @@ function Show-StartupBanner {
     Write-Host ""
 }
 
-# 12. 📚 LIST ALL FEATURES (DANH SÁCH TẤT CẢ LỆNH)
+# 12. 📚 LIST ALL FEATURES (INTERACTIVE TABBED DASHBOARD)
 function global:features {
-    Clear-Host
-    Write-Host ""
-    Write-Host "  ╔═══════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║        🌟 POWERSHELL PRO - FULL COMMAND REFERENCE 🌟              ║" -ForegroundColor Cyan
-    Write-Host "  ╚═══════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
-    Write-Host ""
-
-    $cats = [ordered]@{
-        "🎯 TUI & INTERACTIVE" = @(
-            @{ C="cmd (Ctrl+P)"; D="Command Palette - Quick access to all tools" },
-            @{ C="env"; D="Environment Variable Manager (TUI)" },
-            @{ C="als"; D="Alias Manager (TUI)" },
-            @{ C="bm"; D="Bookmark Manager (TUI)" }
-        )
-        "📂 FILE & NAVIGATION" = @(
-            @{ C="cd ..."; D="Smart CD with history & auto-drive switching" },
-            @{ C=".. / ... / ...."; D="Go up 1/2/3 levels" },
-            @{ C="cd -"; D="Go back to previous directory" },
-            @{ C="mkcd <dir>"; D="Create & enter directory" },
-            @{ C="mkfile <path>"; D="Create file with parent dirs" },
-            @{ C="nano <file>"; D="Smart Editor (Micro/Nano/Notepad)" },
-            @{ C="antigravity"; D="Teleport files (Advanced Copy)" },
-            @{ C="compress <path>"; D="Smart zip compressor" },
-            @{ C="extract <file>"; D="Smart unzip/untar/unrar" },
-            @{ C="tree2 [depth]"; D="Beautiful tree view" },
-            @{ C="open [path]"; D="Open in Explorer" },
-            @{ C="touch <file>"; D="Create/update file timestamp" },
-            @{ C="del <path>"; D="Safe delete with confirmation" },
-            @{ C="fastcopy <src> <dst>"; D="Multi-threaded robocopy" },
-            @{ C="sizesort [path]"; D="Analyze folder sizes with visual bars" },
-            @{ C="count [path]"; D="Count files & folders" }
-        )
-        "🔍 SEARCH & FIND" = @(
-            @{ C="ff <name> [path]"; D="Find files by name (pattern)" },
-            @{ C="ftext <text> [path]"; D="Find text content in files" },
-            @{ C="web <query>"; D="Search web (Google/GH/SO/YT)" },
-            @{ C="grep <pattern>"; D="Search in files (alias)" },
-            @{ C="which <cmd>"; D="Show command location" }
-        )
-        "💼 PRODUCTIVITY" = @(
-            @{ C="todo"; D="Task manager (add/done/clear)" },
-            @{ C="calc <expr>"; D="Inline calculator (auto-copy)" },
-            @{ C="timer [sec]"; D="Countdown timer with beep" },
-            @{ C="passgen [len]"; D="Secure password generator" },
-            @{ C="short <url>"; D="URL shortener (is.gd)" },
-            @{ C="cheat"; D="Quick command cheatsheet" }
-        )
-        "🌐 NETWORK & SYSTEM" = @(
-            @{ C="myip"; D="Show local & public IP" },
-            @{ C="weather [city]"; D="Weather forecast (wttr.in)" },
-            @{ C="battery"; D="Laptop battery status" },
-            @{ C="up <url>"; D="Check website up/down" },
-            @{ C="killport <port>"; D="Kill process on port" },
-            @{ C="ports [filter]"; D="List listening ports" },
-            @{ C="sysinfo"; D="Detailed system info" },
-            @{ C="top [n]"; D="Top N processes by RAM" }
-        )
-        "🌍 ENVIRONMENT" = @(
-            @{ C="env"; D="Interactive TUI manager" },
-            @{ C="env list"; D="List all variables" },
-            @{ C="env add -Name X -Value Y"; D="Add variable" },
-            @{ C="env del -Name X"; D="Delete variable" }
-        )
-        "⌨️  ALIASES" = @(
-            @{ C="als"; D="Interactive TUI manager" },
-            @{ C="als list"; D="List all aliases" },
-            @{ C="als add -Name X -Value Y"; D="Add alias" },
-            @{ C="als del -Name X"; D="Delete alias" }
-        )
-        "📍 BOOKMARKS" = @(
-            @{ C="bm"; D="Interactive TUI" },
-            @{ C="bm add [name]"; D="Bookmark current dir" },
-            @{ C="bm go <name>"; D="Jump to bookmark" },
-            @{ C="bm del <name>"; D="Delete bookmark" },
-            @{ C="j <name>"; D="Quick jump (alias)" }
-        )
-        "🧰 SYSTEM TOOLS" = @(
-            @{ C="sudo"; D="Restart as Administrator" },
-            @{ C="god"; D="Switch to SYSTEM (God Mode)" },
-            @{ C="ti"; D="TrustedInstaller (Highest Privilege)" },
-            @{ C="drop"; D="Drop to user mode (Ring 3)" },
-            @{ C="reload"; D="Reload PowerShell profile" },
-            @{ C="editprofile (ep)"; D="Edit profile in code/notepad" },
-            @{ C="cleantemp"; D="Deep Clean (System, NPM, Go, Pip...)" },
-            @{ C="install <pkg>"; D="Winget install wrapper" },
-            @{ C="uninstall <pkg>"; D="Winget uninstall wrapper" },
-            @{ C="upgrade"; D="Upgrade all packages" },
-            @{ C="star"; D="⭐ Lock window (can't close with X)" },
-            @{ C="unstar"; D="🔓 Unlock window (allow close)" }
-        )
-        "☢️ NUCLEAR OPTIONS" = @(
-            @{ C="powerup"; D="Enable ALL Privileges (SeDebug/SeLoadDriver...)" },
-            @{ C="zkill <name/pid>"; D="Native API Kill (NtTerminateProcess)" },
-            @{ C="def off/on"; D="Disable/Enable Windows Defender" },
-            @{ C="nuke <name>"; D="Destroy Process AND Service (Force)" },
-            @{ C="ghost"; D="Wipe all Event Logs & History" }
-        )
-        "🐳 DOCKER (if installed)" = @(
-            @{ C="dps"; D="Running containers" },
-            @{ C="dpsa"; D="All containers" },
-            @{ C="dimg"; D="Images list" },
-            @{ C="dlog <name>"; D="Follow logs" },
-            @{ C="dsh/dbash <name>"; D="Shell into container" },
-            @{ C="dstop"; D="Stop all containers" },
-            @{ C="dclean"; D="Prune system" }
-        )
-        "🎨 UTILITIES" = @(
-            @{ C="clip"; D="Copy to clipboard (pipe)" },
-            @{ C="paste"; D="Paste from clipboard" },
-            @{ C="hh [n] [filter]"; D="Command history (last N)" },
-            @{ C="c / clear"; D="Clear screen" },
-            @{ C="ll / la"; D="List files / all (hidden)" },
-            @{ C=".. / ... / home / desk"; D="Quick navigation shortcuts" }
-        )
-        "🎯 KEYBINDINGS" = @(
-            @{ C="Ctrl+P"; D="Open Command Palette" },
-            @{ C="Ctrl+C"; D="Cancel line / Exit prompt" },
-            @{ C="Ctrl+L"; D="Clear screen" },
-            @{ C="Ctrl+W"; D="Delete word backward" },
-            @{ C="Alt+."; D="Insert last argument" },
-            @{ C="Tab"; D="Auto-complete / fix suggestions" }
-        )
-    }
-
-    foreach ($cat in $cats.Keys) {
-        Write-Host "  $cat" -ForegroundColor Magenta
-        Write-Host "  $("─" * 65)" -ForegroundColor DarkGray
-        foreach ($item in $cats[$cat]) {
-            Write-Host "    " -NoNewline
-            Write-Host ("{0,-28}" -f $item.C) -NoNewline -ForegroundColor Cyan
-            Write-Host "  $($item.D)" -ForegroundColor White
+    # 1. Định nghĩa dữ liệu
+    $tabs = [ordered]@{
+        "📂 CORE" = @{
+            Color = "Cyan"
+            Items = @(
+                @{ C="cmd (Ctrl+P)"; D="Command Palette - Menu lệnh nhanh" },
+                @{ C="cd ..."; D="Smart CD (History, Auto-drive)" },
+                @{ C="mkcd <dir>"; D="Tạo thư mục & CD vào luôn" },
+                @{ C="mkfile"; D="Tạo file + thư mục cha tự động" },
+                @{ C="nano"; D="Trình sửa file đơn giản" },
+                @{ C="open ."; D="Mở trong File Explorer" },
+                @{ C="touch"; D="Tạo file / Cập nhật timestamp" },
+                @{ C="del"; D="Xóa an toàn có xác nhận" },
+                @{ C="fastcopy"; D="Copy đa luồng (Robocopy wrapper)" },
+                @{ C="antigravity"; D="Teleport files (Siêu cấp)" },
+                @{ C="compress / extract"; D="Nén & Giải nén đa năng" },
+                @{ C="tree2 / sizesort"; D="Xem cây thư mục & Phân tích size" },
+                @{ C="count"; D="Đếm số lượng file/folder" }
+            )
         }
-        Write-Host ""
+        "🔍 FIND" = @{
+            Color = "Blue"
+            Items = @(
+                @{ C="ff <name>"; D="Tìm file theo tên" },
+                @{ C="ftext <text>"; D="Tìm nội dung trong file" },
+                @{ C="grep <regex>"; D="Tìm kiếm Regex (Select-String)" },
+                @{ C="which <cmd>"; D="Xem đường dẫn lệnh" },
+                @{ C="bm"; D="Quản lý Bookmark (TUI)" },
+                @{ C="j <name>"; D="Nhảy nhanh đến Bookmark" },
+                @{ C="web <q>"; D="Tìm kiếm Google/Github/StackOverflow" }
+            )
+        }
+        "🧰 SYSTEM" = @{
+            Color = "Magenta"
+            Items = @(
+                @{ C="rings"; D="Kiểm tra cấp độ quyền lực" },
+                @{ C="sudo / drop"; D="Admin Mode / User Mode" },
+                @{ C="god / ti"; D="SYSTEM Mode / TrustedInstaller" },
+                @{ C="sysinfo"; D="Thông tin hệ thống chi tiết" },
+                @{ C="top"; D="Xem process ngốn RAM nhất" },
+                @{ C="cleantemp"; D="Dọn dẹp rác hệ thống sâu" },
+                @{ C="star / unstar"; D="Khóa/Mở khóa cửa sổ (Chống tắt)" },
+                @{ C="install / uninstall"; D="Cài đặt/Gỡ bỏ phần mềm (Winget)" },
+                @{ C="upgrade"; D="Cập nhật toàn bộ phần mềm" },
+                @{ C="reload / editprofile"; D="Nạp lại / Chỉnh sửa Profile" }
+            )
+        }
+        "☢️ NUCLEAR" = @{
+            Color = "Red"
+            Items = @(
+                @{ C="powerup"; D="⚡ Unlock ALL Privileges (Token Overdrive)" },
+                @{ C="zkill <pid>"; D="💀 Native API Kill (NtTerminateProcess)" },
+                @{ C="def off/on"; D="🛡️ Tắt/Bật Windows Defender" },
+                @{ C="nuke <name>"; D="💣 Hủy diệt Process & Service" },
+                @{ C="ghost"; D="👻 Xóa sạch Event Logs & History" }
+            )
+        }
+        "🌀 HYPER" = @{
+            Color = "DarkCyan"
+            Items = @(
+                @{ C="hyp"; D="Kiểm tra trạng thái Hypervisor / VBS" },
+                @{ C="uefi"; D="Đọc thông tin Firmware / Secure Boot" },
+                @{ C="vmx <vm> <cmd>"; D="Tiêm code vào VM (PowerShell Direct)" },
+                @{ C="dps / dpsa"; D="[Docker] Xem containers" },
+                @{ C="dstop / dclean"; D="[Docker] Quản lý containers" }
+            )
+        }
+        "🌐 NET" = @{
+            Color = "Green"
+            Items = @(
+                @{ C="myip"; D="Xem Public IP & Local IP" },
+                @{ C="ports"; D="Xem các port đang mở" },
+                @{ C="killport <p>"; D="Diệt process đang chiếm port" },
+                @{ C="up <url>"; D="Ping kiểm tra web sống/chết" },
+                @{ C="weather"; D="Xem dự báo thời tiết" }
+            )
+        }
+        "🛠️ TOOLS" = @{
+            Color = "Yellow"
+            Items = @(
+                @{ C="todo"; D="Quản lý công việc (TUI)" },
+                @{ C="env / als"; D="Quản lý Environment / Alias (TUI)" },
+                @{ C="calc"; D="Máy tính nhanh" },
+                @{ C="passgen"; D="Tạo mật khẩu mạnh" },
+                @{ C="timer"; D="Đồng hồ đếm ngược" },
+                @{ C="short"; D="Rút gọn link (is.gd)" },
+                @{ C="cheat"; D="Cheat Sheet lệnh nhanh" },
+                @{ C="clip / paste"; D="Clipboard tools" },
+                @{ C="hh / c"; D="Lịch sử lệnh / Xóa màn hình" }
+            )
+        }
     }
+
+    $tabNames = $tabs.Keys | ForEach-Object { $_ }
+    $activeIdx = 0
     
-    Write-Host "  ╔═══════════════════════════════════════════════════════════════════╗" -ForegroundColor Green
-    Write-Host "  ║  💡 TIP: Click items in TUI menus (if terminal supports mouse)   ║" -ForegroundColor Green
-    Write-Host "  ║  💡 TIP: Type 'cmd' or press Ctrl+P for quick access             ║" -ForegroundColor Green
-    Write-Host "  ║  💡 TIP: All TUI menus support keyboard navigation                ║" -ForegroundColor Green
-    Write-Host "  ╚═══════════════════════════════════════════════════════════════════╝" -ForegroundColor Green
-    Write-Host ""
+    # Ẩn con trỏ chuột
+    [Console]::CursorVisible = $false
+    
+    try {
+        while ($true) {
+            Clear-Host
+            
+            # --- HEADER ---
+            Write-Host ""
+            Write-Host "  🌟 POWERSHELL PRO FEATURES" -ForegroundColor Cyan
+            Write-Host "  Use Left/Right Arrow to switch tabs. Esc/Q to quit." -ForegroundColor DarkGray
+            Write-Host ""
+            
+            # --- TABS BAR ---
+            Write-Host "  " -NoNewline
+            for ($i = 0; $i -lt $tabNames.Count; $i++) {
+                $name = $tabNames[$i]
+                $isActive = ($i -eq $activeIdx)
+                $tabColor = $tabs[$name].Color
+                
+                if ($isActive) {
+                    Write-Host " " -NoNewline -BackgroundColor $tabColor
+                    Write-Host "$name" -NoNewline -ForegroundColor Black -BackgroundColor $tabColor
+                    Write-Host " " -NoNewline -BackgroundColor $tabColor
+                } else {
+                    Write-Host " $name " -NoNewline -ForegroundColor DarkGray
+                }
+                Write-Host "  " -NoNewline -BackgroundColor Black
+            }
+            Write-Host "`n"
+
+            # --- CONTENT ---
+            $currentTabName = $tabNames[$activeIdx]
+            $currentData = $tabs[$currentTabName]
+            $items = $currentData.Items
+            $themeColor = $currentData.Color
+            
+            # Border Top
+            Write-Host "  $($Script:TUI.BoxChars.TL)$("─"*70)$($Script:TUI.BoxChars.TR)" -ForegroundColor $themeColor
+            
+            foreach ($item in $items) {
+                Write-Host "  $($Script:TUI.BoxChars.V) " -NoNewline -ForegroundColor $themeColor
+                Write-Host ("{0,-25}" -f $item.C) -NoNewline -ForegroundColor $themeColor
+                Write-Host " : " -NoNewline -ForegroundColor DarkGray
+                Write-Host ("{0,-41}" -f $item.D) -NoNewline -ForegroundColor White
+                Write-Host "$($Script:TUI.BoxChars.V)" -ForegroundColor $themeColor
+            }
+            
+            # Fill empty lines to maintain height
+            for ($k = $items.Count; $k -lt 14; $k++) {
+                Write-Host "  $($Script:TUI.BoxChars.V)$(" "*70)$($Script:TUI.BoxChars.V)" -ForegroundColor $themeColor
+            }
+            
+            # Border Bottom
+            Write-Host "  $($Script:TUI.BoxChars.BL)$("─"*70)$($Script:TUI.BoxChars.BR)" -ForegroundColor $themeColor
+            
+            # --- KEY HANDLING ---
+            $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            
+            switch ($key.VirtualKeyCode) {
+                37 { # Left
+                    $activeIdx--
+                    if ($activeIdx -lt 0) { $activeIdx = $tabNames.Count - 1 }
+                }
+                39 { # Right
+                    $activeIdx++
+                    if ($activeIdx -ge $tabNames.Count) { $activeIdx = 0 }
+                }
+                { $_ -in 27, 81 } { # Esc or Q
+                    return
+                }
+            }
+        }
+    } finally {
+        [Console]::CursorVisible = $true
+    }
 }
 
 #region ═══════════════════════════════════════════════════════════════════════════
@@ -4069,6 +4100,8 @@ function global:def {
         [string]$Action = "status"
     )
 
+    if (-not (Assert-Ring -ReqLevel 3 -CmdName "def")) { return } # Yêu cầu System để tắt hiệu quả
+
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]$identity
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -4129,6 +4162,8 @@ function global:def {
 function global:nuke {
     param([Parameter(Mandatory)][string]$Name)
 
+    if (-not (Assert-Ring -ReqLevel 2 -CmdName "nuke")) { return }
+
     Write-Host "  💣 NUKING TARGET: $Name" -ForegroundColor Red
     
     # 1. Try killing as Process
@@ -4184,6 +4219,8 @@ function global:nuke {
 
 # 20. 👻 GHOST (Clear Logs/Tracks)
 function global:ghost {
+    if (-not (Assert-Ring -ReqLevel 2 -CmdName "ghost")) { return }
+
     if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         Write-Host "  ❌ Admin rights required to clear logs." -ForegroundColor Red
         return
@@ -4395,9 +4432,193 @@ function global:powerup {
     Write-Host ""
 }
 
+#region ═══════════════════════════════════════════════════════════════════════════
+#        🛡️ RING SECURITY GATEKEEPER
+#endregion ════════════════════════════════════════════════════════════════════════
+
+function global:Get-RingLevel {
+    $id = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $p = [Security.Principal.WindowsPrincipal]$id
+    $isAdmin = $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    $isSystem = $id.IsSystem
+    
+    # Check Ring -1 (SeDebugPrivilege Enabled)
+    $hasDebug = $false
+    try { if ((whoami /priv) -match "SeDebugPrivilege.*Enabled") { $hasDebug = $true } } catch {}
+    if ($hasDebug) { return 5 } 
+
+    # Check Ring 0 (TrustedInstaller)
+    if ($isSystem -and ($Host.UI.RawUI.WindowTitle -match "TrustedInstaller")) { return 4 }
+    
+    # Check Ring 1 (System)
+    if ($isSystem) { return 3 }
+    
+    # Check Ring 2 (Admin)
+    if ($isAdmin) { return 2 }
+    
+    # Ring 3 (User)
+    return 1
+}
+
+function global:Assert-Ring {
+    param(
+        [int]$ReqLevel,
+        [string]$CmdName
+    )
+    
+    $curLevel = Get-RingLevel
+    $ringNames = @{1="User (Ring 3)"; 2="Admin (Ring 2)"; 3="System (Ring 1)"; 4="TrustedInstaller (Ring 0)"; 5="PowerUp (Ring -1)"}
+    
+    if ($curLevel -lt $ReqLevel) {
+        # Xác định phương thức mở
+        $method = ""
+        $action = ""
+        switch ($ReqLevel) {
+            2 { $method = "Run 'sudo'"; $action = "New Window (Admin)" }
+            3 { $method = "Run 'god'"; $action = "New Window (System)" }
+            4 { $method = "Run 'ti'"; $action = "New Window (TrustedInstaller)" }
+            5 { $method = "Run 'powerup'"; $action = "In-Place Token Overdrive" }
+        }
+
+        Write-Host ""
+        Write-Host "  🛑 ACCESS DENIED: INSUFFICIENT PRIVILEGE" -ForegroundColor Red
+        Write-Host "     Command : " -NoNewline -ForegroundColor DarkGray
+        Write-Host $CmdName -ForegroundColor White
+        Write-Host "     Current : " -NoNewline -ForegroundColor DarkGray
+        Write-Host $ringNames[$curLevel] -ForegroundColor Yellow
+        Write-Host "     Required: " -NoNewline -ForegroundColor DarkGray
+        Write-Host $ringNames[$ReqLevel] -ForegroundColor Cyan
+        Write-Host ""
+        
+        Write-Host "  🔓 UNLOCK METHOD: " -NoNewline -ForegroundColor DarkGray
+        Write-Host "$method " -NoNewline -ForegroundColor Green
+        Write-Host "($action)" -ForegroundColor DarkGray
+        Write-Host ""
+        
+        # Hỏi user
+        Write-Host "  👉 [Y] Unlock Now (Mở quyền)  │  [N] Continue Anyway (Chạy cố)" -ForegroundColor White
+        $choice = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        
+        if ($choice.VirtualKeyCode -eq 89) { # Y (89 is keycode for Y)
+            Write-Host "  🚀 Launching elevation protocol..." -ForegroundColor Green
+            Start-Sleep -Milliseconds 500
+            
+            switch ($ReqLevel) {
+                2 { sudo }
+                3 { god }
+                4 { ti }
+                5 { powerup } 
+            }
+            
+            # Nếu là PowerUp (Level 5), nó chạy tại chỗ nên ta cho phép lệnh gốc tiếp tục
+            # Các level khác mở cửa sổ mới nên ta dừng lệnh gốc ở cửa sổ hiện tại
+            if ($ReqLevel -eq 5) { return $true } 
+            return $false 
+        } else {
+            Write-Host "  ⚠️  Proceeding with limited privileges (Might fail)..." -ForegroundColor DarkGray
+            return $true 
+        }
+    }
+    return $true
+}
+
+# 23. 💍 RINGS (SECURITY CONTEXT SCANNER)
+function global:rings {
+    $id = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $p = [Security.Principal.WindowsPrincipal]$id
+    $isAdmin = $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    $isSystem = $id.IsSystem
+    $userName = $id.Name
+    
+    # Check Integrity Level (Mức độ tin cậy)
+    # Medium = User, High = Admin, System = System
+    # Cách check nhanh qua whoami /groups
+    $integrity = "Medium (Standard)"
+    $groups = whoami /groups
+    if ($groups -match "High Mandatory Level") { $integrity = "High (Elevated)" }
+    if ($groups -match "System Mandatory Level") { $integrity = "System (Kernel-Equivalent)" }
+
+    # Check PowerUp Status
+    $hasDebug = $false
+    try {
+        $whoamiPrivs = whoami /priv
+        if ($whoamiPrivs -match "SeDebugPrivilege.*Enabled") { $hasDebug = $true }
+    } catch {}
+
+    Write-Host ""
+    Write-Host "  🛡️  SECURITY CONTEXT SCANNER" -ForegroundColor Cyan
+    Write-Host "  ────────────────────────────" -ForegroundColor DarkGray
+
+    # --- LEVEL 1: RING 3 (USER MODE) ---
+    Write-Host "  👤 RING 3 (USER MODE)" -ForegroundColor Magenta
+    
+    # Standard User
+    if (-not $isAdmin) {
+        Write-Host "     🟢 Standard User  : Active ($userName)" -ForegroundColor Green
+    } else {
+        Write-Host "     ⚫ Standard User  : Inactive" -ForegroundColor DarkGray
+    }
+
+    # Admin (High Integrity)
+    if ($isAdmin -and -not $isSystem) {
+        Write-Host "     🔵 Administrator  : Active (High Integrity)" -ForegroundColor Cyan
+    } else {
+        Write-Host "     ⚫ Administrator  : Inactive" -ForegroundColor DarkGray
+    }
+
+    # SYSTEM (System Integrity)
+    if ($isSystem) {
+        Write-Host "     🟣 NT AUTHORITY    : SYSTEM (God Mode)" -ForegroundColor Magenta
+    } else {
+        Write-Host "     ⚫ NT AUTHORITY    : Inactive" -ForegroundColor DarkGray
+    }
+
+    Write-Host ""
+    
+    # --- LEVEL 2: RING 0 GATEWAY (KERNEL ACCESS) ---
+    Write-Host "  ⚙️  RING 0 GATEWAY (KERNEL ACCESS)" -ForegroundColor Red
+    
+    # TrustedInstaller (Owner)
+    $isTI = ($isSystem -and ($Host.UI.RawUI.WindowTitle -match "TrustedInstaller"))
+    if ($isTI) {
+        Write-Host "     🟠 TrustedInstaller: Active (File Owner)" -ForegroundColor Yellow
+    } else {
+        Write-Host "     ⚫ TrustedInstaller: Inactive" -ForegroundColor DarkGray
+    }
+
+    # Privilege Escalation (Token Overdrive)
+    if ($hasDebug) {
+        Write-Host "     ☢️  Token Overdrive : UNLOCKED (SeDebug/SeLoadDriver)" -ForegroundColor Red
+        Write-Host "          ↳ Capability   : Cross-Process Access, Driver Loading" -ForegroundColor DarkGray
+    } else {
+        Write-Host "     ⚫ Token Overdrive : Locked" -ForegroundColor DarkGray
+    }
+
+    Write-Host ""
+    Write-Host "  ────────────────────────────" -ForegroundColor DarkGray
+    
+    # --- CURRENT RING SUMMARY ---
+    Write-Host "  👉 CURRENT LEVEL: " -NoNewline -ForegroundColor White
+    
+    if ($hasDebug) { 
+        Write-Host "LEVEL 5 - POWERUP (KERNEL BRIDGE)" -ForegroundColor Red -BackgroundColor Black
+    } elseif ($isTI) {
+        Write-Host "LEVEL 4 - TRUSTED INSTALLER (RING 0)" -ForegroundColor Yellow -BackgroundColor Black
+    } elseif ($isSystem) {
+        Write-Host "LEVEL 3 - SYSTEM (RING 1)" -ForegroundColor Magenta -BackgroundColor Black
+    } elseif ($isAdmin) {
+        Write-Host "LEVEL 2 - ADMIN (RING 2)" -ForegroundColor Cyan -BackgroundColor Black
+    } else {
+        Write-Host "LEVEL 1 - USER (RING 3)" -ForegroundColor Green -BackgroundColor Black
+    }
+    Write-Host ""
+}
+
 # 22. 💀 ZKILL (Native API Terminator)
 function global:zkill {
     param([Parameter(Mandatory)][string]$Name)
+
+    if (-not (Assert-Ring -ReqLevel 5 -CmdName "zkill")) { return } # Yêu cầu PowerUp
 
     # Tự động PowerUp trước khi giết
     [NativeKiller]::EnablePrivilege("SeDebugPrivilege") | Out-Null
@@ -4434,6 +4655,102 @@ function global:zkill {
     }
 }
 
+#region ═══════════════════════════════════════════════════════════════════════════
+#        🌀 RING -1: HYPERVISOR & FIRMWARE LAYER
+#endregion ════════════════════════════════════════════════════════════════════════
+
+# 23. 🕹️ HYP (Hypervisor Status & Control)
+function global:hyp {
+    Write-Host ""
+    Write-Host "  🌀 RING -1: HYPERVISOR LAYER CONTROL" -ForegroundColor Cyan
+    Write-Host "  ────────────────────────────────────" -ForegroundColor DarkGray
+    
+    # 1. Detect Hypervisor
+    $sys = Get-CimInstance Win32_ComputerSystem
+    $isHypervisorPresent = $sys.HypervisorPresent
+    
+    Write-Host "  🖥️  Hypervisor Present  : " -NoNewline -ForegroundColor DarkGray
+    if ($isHypervisorPresent) { 
+        Write-Host "YES (Virtualized)" -ForegroundColor Cyan 
+    } else { 
+        Write-Host "NO (Bare Metal)" -ForegroundColor Yellow 
+    }
+
+    # 2. VBS / HVCI Status (Security running at Ring -1)
+    $sec = Get-CimInstance Win32_DeviceGuard -ErrorAction SilentlyContinue
+    $vbsStatus = if ($sec.SecurityServicesRunning -match 1) { "RUNNING" } else { "STOPPED" }
+    
+    Write-Host "  🛡️  Virtual Security (VBS): " -NoNewline -ForegroundColor DarkGray
+    Write-Host $vbsStatus -ForegroundColor $(if($vbsStatus -eq "RUNNING"){"Green"}else{"Red"})
+
+    # 3. Check for Hyper-V features if module exists
+    if (Get-Command Get-VM -ErrorAction SilentlyContinue) {
+        $vms = Get-VM
+        Write-Host "  📦 Managed VMs          : " -NoNewline -ForegroundColor DarkGray
+        Write-Host $vms.Count -ForegroundColor White
+        
+        foreach ($vm in $vms) {
+            $stateColor = if ($vm.State -eq 'Running') { "Green" } else { "DarkGray" }
+            Write-Host "     ├─ $($vm.Name) " -NoNewline -ForegroundColor White
+            Write-Host "[$($vm.State)]" -ForegroundColor $stateColor
+        }
+    } else {
+        Write-Host "  ⚠️  Hyper-V Module not loaded." -ForegroundColor DarkGray
+    }
+    Write-Host ""
+}
+
+# 24. 🧠 UEFI (Firmware / NVRAM Interaction)
+function global:uefi {
+    if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Write-Host "  ❌ Admin rights required for Firmware access." -ForegroundColor Red
+        return
+    }
+
+    Write-Host ""
+    Write-Host "  🧠 FIRMWARE INTERFACE (UEFI/NVRAM)" -ForegroundColor Magenta
+    Write-Host "  ──────────────────────────────────" -ForegroundColor DarkGray
+    
+    # Secure Boot Status
+    $sb = Confirm-SecureBootUEFI -ErrorAction SilentlyContinue
+    Write-Host "  🔒 Secure Boot : " -NoNewline -ForegroundColor DarkGray
+    if ($sb) { Write-Host "ENABLED" -ForegroundColor Green } else { Write-Host "DISABLED/LEGACY" -ForegroundColor Red }
+
+    # Boot Entries (Using BCD)
+    Write-Host "  🚀 Boot Loader : " -NoNewline -ForegroundColor DarkGray
+    try {
+        $bcd = bcdedit /enum "{current}" | Select-String "description"
+        $desc = $bcd.ToString().Split(" ")[-1]
+        Write-Host $desc -ForegroundColor Cyan
+    } catch { Write-Host "Unknown" -ForegroundColor DarkGray }
+
+    Write-Host ""
+    Write-Host "  ⚠️  WARNING: Modifying NVRAM variables can brick the board." -ForegroundColor Red
+    Write-Host ""
+}
+
+# 25. ⚡ VM-X (PowerShell Direct - VM Escape/Injection)
+function global:vmx {
+    param(
+        [Parameter(Mandatory)][string]$VMName,
+        [Parameter(Mandatory)][string]$Command
+    )
+    
+    Write-Host "  💉 INJECTING CODE INTO VM LAYER: $VMName" -ForegroundColor Cyan
+    
+    try {
+        # Bypass network stack, talk directly via VMBus (Ring -1 Channel)
+        Invoke-Command -VMName $VMName -ScriptBlock { 
+            param($c) 
+            Invoke-Expression $c 
+        } -ArgumentList $Command -Credential (Get-Credential) -ErrorAction Stop
+        
+        Write-Host "  ✅ Injection Successful." -ForegroundColor Green
+    } catch {
+        Write-Host "  ❌ Injection Failed: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
 # 17. 🛡️ TRUSTED INSTALLER (HIGHER THAN KERNEL/SYSTEM)
 function global:ti {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -4467,6 +4784,151 @@ function global:ti {
     if ($choice -eq 'y') {
         god
     }
+}
+
+#region ═══════════════════════════════════════════════════════════════════════════
+#        🌀 RING -1: HYPERVISOR & FIRMWARE INTERACTION
+#endregion ════════════════════════════════════════════════════════════════════════
+
+# 23. 🕹️ HYP (Hypervisor Introspection)
+function global:hyp {
+    Write-Host ""
+    Write-Host "  🌀 RING -1: HYPERVISOR LAYER INTROSPECTION" -ForegroundColor Cyan
+    Write-Host "  ──────────────────────────────────────────" -ForegroundColor DarkGray
+    
+    # 1. Detect Execution Mode (Bare Metal vs Virtualized)
+    $sys = Get-CimInstance Win32_ComputerSystem
+    $proc = Get-CimInstance Win32_Processor | Select-Object -First 1
+    
+    Write-Host "  🖥️  Execution Context   : " -NoNewline -ForegroundColor DarkGray
+    if ($sys.HypervisorPresent) { 
+        if ($sys.Model -match "Virtual|VMware|KVM|Hyper-V") {
+            Write-Host "GUEST (Virtual Machine)" -ForegroundColor Yellow 
+        } else {
+            Write-Host "HOST (Hyper-V Active)" -ForegroundColor Cyan 
+        }
+    } else { 
+        Write-Host "BARE METAL (Ring 0 Direct)" -ForegroundColor Green 
+    }
+
+    Write-Host "  🧠 Virtualization Flag  : " -NoNewline -ForegroundColor DarkGray
+    if ($proc.VirtualizationFirmwareEnabled) { Write-Host "ENABLED (VT-x/AMD-V)" -ForegroundColor Green } else { Write-Host "DISABLED" -ForegroundColor Red }
+
+    # 2. VBS / HVCI Status (Virtualization Based Security)
+    # Đây là lớp bảo mật chạy ở Ring -1 để bảo vệ Kernel Ring 0
+    try {
+        $sec = Get-CimInstance Win32_DeviceGuard -ErrorAction Stop
+        $vbsStatus = if ($sec.SecurityServicesRunning -contains 1) { "RUNNING" } else { "STOPPED" }
+        $credGuard = if ($sec.SecurityServicesRunning -contains 2) { "ACTIVE" } else { "INACTIVE" }
+        
+        Write-Host "  🛡️  Hypervisor Security : " -NoNewline -ForegroundColor DarkGray
+        Write-Host "VBS: $vbsStatus" -ForegroundColor $(if($vbsStatus -eq "RUNNING"){"Green"}else{"Red"}) -NoNewline
+        Write-Host " | " -NoNewline -ForegroundColor DarkGray
+        Write-Host "CredGuard: $credGuard" -ForegroundColor $(if($credGuard -eq "ACTIVE"){"Green"}else{"Yellow"})
+    } catch {
+        Write-Host "  ⚠️  Cannot read Device Guard status." -ForegroundColor DarkGray
+    }
+
+    # 3. Hyper-V Management (Host Only)
+    if (Get-Command Get-VM -ErrorAction SilentlyContinue) {
+        $vms = Get-VM
+        Write-Host "  📦 Local Hyper-V VMs    : " -NoNewline -ForegroundColor DarkGray
+        Write-Host $vms.Count -ForegroundColor White
+        
+        if ($vms) {
+            Write-Host "  ──────────────────────────────────────────" -ForegroundColor DarkGray
+            foreach ($vm in $vms) {
+                $stateColor = if ($vm.State -eq 'Running') { "Green" } else { "DarkGray" }
+                Write-Host "     ⚡ $($vm.Name)" -NoNewline -ForegroundColor White
+                Write-Host " [$($vm.State)]" -ForegroundColor $stateColor -NoNewline
+                Write-Host " (CPU: $($vm.ProcessorCount) | RAM: $([math]::Round($vm.MemoryAssigned/1GB, 1))GB)" -ForegroundColor DarkGray
+            }
+        }
+    }
+    Write-Host ""
+}
+
+# 24. 🧠 UEFI (Firmware / NVRAM Interaction)
+function global:uefi {
+    if (-not (Assert-Ring -ReqLevel 2 -CmdName "uefi")) { return }
+
+    if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Write-Host "  ❌ Admin rights required to access Firmware Layer." -ForegroundColor Red
+        return
+    }
+
+    Write-Host ""
+    Write-Host "  🧠 FIRMWARE INTERFACE (UEFI/NVRAM)" -ForegroundColor Magenta
+    Write-Host "  ──────────────────────────────────" -ForegroundColor DarkGray
+    
+    # Secure Boot Status
+    try {
+        $sb = Confirm-SecureBootUEFI -ErrorAction Stop
+        Write-Host "  🔒 Secure Boot : " -NoNewline -ForegroundColor DarkGray
+        if ($sb) { Write-Host "ENABLED (Kernel Protected)" -ForegroundColor Green } else { Write-Host "DISABLED (Kernel Vulnerable)" -ForegroundColor Red }
+    } catch {
+        Write-Host "  🔒 Secure Boot : " -NoNewline -ForegroundColor DarkGray
+        Write-Host "LEGACY BIOS / UNKNOWN" -ForegroundColor Yellow
+    }
+
+    # Boot Entries (BCD - Boot Configuration Data)
+    Write-Host "  🚀 Boot Manager: " -NoNewline -ForegroundColor DarkGray
+    try {
+        $bcd = cmd /c bcdedit /enum "{current}"
+        $desc = ($bcd | Select-String "description").ToString().Split(" ", 2)[1].Trim()
+        $path = ($bcd | Select-String "path").ToString().Split(" ", 2)[1].Trim()
+        
+        Write-Host "$desc " -NoNewline -ForegroundColor Cyan
+        Write-Host "($path)" -ForegroundColor DarkGray
+        
+        if ($bcd -match "hypervisorlaunchtype\s+Auto") {
+            Write-Host "     Type        : " -NoNewline -ForegroundColor DarkGray
+            Write-Host "Hypervisor Launch Enabled" -ForegroundColor Green
+        }
+    } catch { Write-Host "Access Denied" -ForegroundColor Red }
+
+    Write-Host ""
+}
+
+# 25. ⚡ VMX (PowerShell Direct - VM Injection)
+# Kỹ thuật này sử dụng VMBus để xuyên qua Network Stack, đi thẳng từ Host (Ring 0/Ring 3) vào Guest VM
+function global:vmx {
+    param(
+        [Parameter(Mandatory)][string]$Target,
+        [Parameter(Mandatory)][string]$Command
+    )
+    
+    if (-not (Get-Command Invoke-Command -ErrorAction SilentlyContinue)) { return }
+
+    Write-Host ""
+    Write-Host "  💉 VMBUS INJECTION PROTOCOL (PowerShell Direct)" -ForegroundColor Cyan
+    Write-Host "  ───────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "  🎯 Target VM : $Target" -ForegroundColor Yellow
+    Write-Host "  📜 Payload   : $Command" -ForegroundColor DarkGray
+    
+    # Check Credentials
+    Write-Host "  🔑 Authenticating via VMBus..." -ForegroundColor DarkGray
+    $cred = Get-Credential
+
+    try {
+        Write-Host "  🚀 Injecting..." -ForegroundColor Green
+        
+        # Invoke via VMName bypasses network, uses Hypervisor Bus
+        $result = Invoke-Command -VMName $Target -Credential $cred -ScriptBlock { 
+            param($c)
+            # Execute in Guest context
+            Invoke-Expression $c
+        } -ArgumentList $Command -ErrorAction Stop
+        
+        Write-Host "  ✅ Output from Guest:" -ForegroundColor Green
+        Write-Host "  ─────────────────────" -ForegroundColor DarkGray
+        $result
+    } catch {
+        Write-Host "  ❌ Injection Failed." -ForegroundColor Red
+        Write-Host "     Make sure the VM is Running and supports PowerShell Direct." -ForegroundColor Yellow
+        Write-Host "     Error: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    Write-Host ""
 }
 
 # --- END OF PROFILE ---

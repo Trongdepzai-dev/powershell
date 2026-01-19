@@ -1,4 +1,4 @@
-# ╔══════════════════════════════════════════════════════════════════════════════╗
+﻿# ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║                        🎨 POWERSHELL PROFILE PRO                              ║
 # ║                           Path: $PROFILE                                      ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -436,23 +436,104 @@ if (Get-Module PSReadLine) {
 
         # Execute
         try {
-            # Use Invoke-Expression to run in current scope, catching errors properly
-            # We must use $ExecutionContext to ensure we catch the CommandNotFoundException
+            # === 🧠 INTELLIGENT PATH RESOLVER (REVERSE SCAN) ===
+            # Calculates the longest valid path prefix to handle spaces correctly.
+            # Example: "My Script Name.ps1 -Verbose" -> Detects "My Script Name.ps1"
+            # Example: "Folder A B" -> Detects "Folder A B" (not just "Folder A")
+
+            $cleanLine = $line.Trim()
+            $tokens = $cleanLine -split ' '
             
-            $cmd = $line.Split(' ')[0]
-            
-            # Check if command exists efficiently before running to avoid ugly error
-            # This is the "Pre-check" strategy which is safer for "Command Not Found"
-            if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
-                 # It might be a relative path or alias not yet resolved, or a specialized syntax
-                 # Let's try to run it and catch the specific error
-                 Invoke-Expression $line
-            } else {
-                 # Command exists, just run it
-                 Invoke-Expression $line
+            # 1. PRE-CHECK: COMMAND VS PATH
+            # If the first word is a known command AND it doesn't look like an explicit path (./, \, /),
+            # assume it's a command and let PowerShell handle it to avoid shadowing.
+            $firstWord = $tokens[0]
+            $looksLikePath = $firstWord -match '^(\.|\\|/|[a-zA-Z]:)'
+            $isCommand = Get-Command $firstWord -ErrorAction SilentlyContinue
+
+            if ($isCommand -and -not $looksLikePath) {
+                # Standard execution for commands like 'git', 'npm', 'dir'
+                Invoke-Expression $line
+                return
             }
 
+            # 2. DEEP SCAN: LONGEST MATCH FIRST
+            # Scan backwards from the full string down to the first token
+            for ($i = $tokens.Count; $i -ge 1; $i--) {
+                # Reconstruct the potential path from tokens 0 to i-1
+                $potentialPath = $tokens[0..($i-1)] -join ' '
+                
+                # Normalize: Remove wrapping quotes for the check
+                $testPath = $potentialPath -replace '^"|"$', '' -replace "^'|'$", ''
+                
+                # Skip checking if empty or just whitespace
+                if ([string]::IsNullOrWhiteSpace($testPath)) { continue }
+
+                # Use LiteralPath to handle special chars like [] () '
+                if (Test-Path -LiteralPath $testPath) {
+                    $item = Get-Item -LiteralPath $testPath -Force
+                    
+                    # 📂 DIRECTORY DETECTION
+                    if ($item.PSIsContainer) {
+                        # Only Auto-CD if the path matches the ENTIRE input
+                        # (Prevents "MyFolder SomeArg" from cd-ing, which might be confusing)
+                        if ($i -eq $tokens.Count) {
+                            Write-Host ""
+                            Write-Host "  📂 Auto-CD: " -NoNewline -ForegroundColor Cyan
+                            Write-Host $item.FullName -ForegroundColor Yellow
+                            Write-Host ""
+                            
+                            if ($Script:DirHistory) { $Script:DirHistory.Add((Get-Location).Path) }
+                            Set-Location -LiteralPath $item.FullName
+                            
+                            [Microsoft.PowerShell.PSConsoleReadLine]::InvokePrompt()
+                            return
+                        }
+                    }
+                    # 🚀 FILE DETECTION
+                    else {
+                        Write-Host ""
+                        Write-Host "  🚀 Auto-Run: " -NoNewline -ForegroundColor Cyan
+                        Write-Host $item.Name -ForegroundColor Yellow
+                        Write-Host ""
+
+                        # Arguments are the rest of the line
+                        $remainingArgs = ""
+                        if ($i -lt $tokens.Count) {
+                            $remainingArgs = $tokens[$i..($tokens.Count-1)] -join ' '
+                        }
+
+                        # Construct Safe Command: & "Path" Args
+                        # We use Invoke-Expression to handle the arguments parsing correctly
+                        $cmdToRun = "& '$testPath' $remainingArgs"
+                        Invoke-Expression $cmdToRun
+                        
+                        [Microsoft.PowerShell.PSConsoleReadLine]::InvokePrompt()
+                        return
+                    }
+                }
+            }
+
+            # 3. FALLBACK
+            # If no path matched, run normally and let PowerShell error handler catch it
+            Invoke-Expression $line
+
         } catch [System.Management.Automation.CommandNotFoundException], [System.Management.Automation.ItemNotFoundException] {
+            # === FALLBACK SMART EXECUTE (Retry if missed above) ===
+            $cleanLine = $line.Trim()
+            $cleanLineUnquoted = $cleanLine -replace '^"|"$', '' -replace "^'|'$", ''
+            
+            if ($cleanLine -match '^\.?[\/\\]' -and (Test-Path -LiteralPath $cleanLineUnquoted -PathType Leaf)) {
+                Write-Host ""
+                Write-Host "  🚀 Smart Execute: " -NoNewline -ForegroundColor Cyan
+                Write-Host $cleanLineUnquoted -ForegroundColor Yellow
+                Write-Host ""
+                try { & "$cleanLineUnquoted" } catch { Write-Host "  ❌ Error: $($_.Exception.Message)" -ForegroundColor Red }
+                [Microsoft.PowerShell.PSConsoleReadLine]::InvokePrompt()
+                return
+            }
+            # ================================================
+
             # Capture the bad command
             $failedCmd = $_.TargetObject
             if (-not $failedCmd) { $failedCmd = $line.Split(' ')[0] }
@@ -757,15 +838,22 @@ Remove-Item Alias:cd -Force -ErrorAction SilentlyContinue
 $Script:DirHistory = [System.Collections.Generic.List[string]]::new()
 $Script:DirHistoryIndex = -1
 
-function global:cd {
-    [CmdletBinding()]
-    param(
-        [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromRemainingArguments = $true)]
-        [string[]]$PathArgs,
-        [switch]$PassThru
-    )
-    
-    # 1. Standard Smart Join (Ghép thông thường)
+    function global:cd {
+        [CmdletBinding()]
+        param(
+            [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromRemainingArguments = $true)]
+            [string[]]$PathArgs,
+            [switch]$PassThru
+        )
+
+        # 0. Smart Alias: cd des -> Desktop
+        if ($PathArgs -contains 'des' -or ($PathArgs -join '') -eq 'des') {
+             if ($Script:DirHistory) { $Script:DirHistory.Add((Get-Location).Path) }
+             Set-Location "C:\Users\Administrator.ADMIN\Desktop"
+             return
+        }
+        
+        # 1. Standard Smart Join (Ghép thông thường)
     $Path = ($PathArgs -join ' ').Trim()
 
     # 2. 🛡️ RAW PATH RECOVERY (Khôi phục đường dẫn gốc)
@@ -1130,54 +1218,214 @@ function global:del {
 }
 
 # Copy siêu cấp vũ trụ
-function global:antigravity {
-    $source = "C:\Users\Administrator.ADMIN\Desktop\superskill\New folder (3)"
-    $current = Get-Location
-    
-    Write-Host ""
-    Write-Host "  🌌 ANTIGRAVITY PROTOCOL INITIATED 🌌" -ForegroundColor Cyan
-    Write-Host "  ────────────────────────────────────" -ForegroundColor DarkGray
-    Write-Host "  📦 Source: " -NoNewline -ForegroundColor DarkGray
-    Write-Host $source -ForegroundColor Yellow
-    Write-Host ""
-    
-    # Prompt for destination
-    Write-Host "  📂 Destination (Press Enter for current): " -NoNewline -ForegroundColor Green
-    $inputPath = Read-Host
-    
-    if ([string]::IsNullOrWhiteSpace($inputPath)) {
-        $dest = $current.Path
-    } else {
-        $dest = $inputPath
+function global:install {
+    # Define available tools/languages with their install logic
+    $tools = @(
+        @{ Name = "Winget";       Id = "winget";       Cmd = "winget";           Install = { install-winget } }
+        @{ Name = "Python";       Id = "Python.Python.3"; Cmd = "python";           Install = { winget install -e --id Python.Python.3 } }
+        @{ Name = "Node.js";      Id = "OpenJS.NodeJS";   Cmd = "node";             Install = { winget install -e --id OpenJS.NodeJS } }
+        @{ Name = "Go";           Id = "GoLang.Go";       Cmd = "go";               Install = { winget install -e --id GoLang.Go } }
+        @{ Name = "Rust";         Id = "Rustlang.Rustup"; Cmd = "rustc";            Install = { winget install -e --id Rustlang.Rustup } }
+        @{ Name = "C++ (MinGW)";  Id = "MinGW";           Cmd = "gcc";              Install = { winget install -e --id GnuWin32.Make } } # Simplified check
+        @{ Name = "Java (JDK)";   Id = "Oracle.JDK.21";   Cmd = "java";             Install = { winget install -e --id Oracle.JDK.21 } }
+        @{ Name = "Git";          Id = "Git.Git";         Cmd = "git";              Install = { winget install -e --id Git.Git } }
+        @{ Name = "VS Code";      Id = "Microsoft.VisualStudioCode"; Cmd = "code"; Install = { winget install -e --id Microsoft.VisualStudioCode } }
+        @{ Name = "GemKit CLI";   Id = "gemkit-cli";      Cmd = "gk";               Install = { npm install -g gemkit-cli } }
+        @{ Name = "UiPro CLI";    Id = "uipro-cli";       Cmd = "uipro";            Install = { npm install -g uipro-cli } }
+    )
+
+    # Prepare menu options
+    $menuOptions = @()
+    foreach ($t in $tools) {
+        $status = if (Get-Command $t.Cmd -ErrorAction SilentlyContinue) { "[Installed]" } else { "" }
+        $menuOptions += "$($t.Name) $status"
     }
-    
-    # Verify source
-    if (-not (Test-Path $source)) {
-        Write-Host "  ❌ Source not found!" -ForegroundColor Red
+
+    Write-Host ""
+    Write-Host "  📦 INSTALLER HUB" -ForegroundColor Cyan
+    Write-Host "  ────────────────" -ForegroundColor DarkGray
+    Write-Host "  Space: Select/Deselect | Enter: Install | Esc: Cancel" -ForegroundColor DarkGray
+    Write-Host ""
+
+    # Use the existing interactive menu system
+    $selectedNames = Show-InteractiveMenu -Title "Select Tools to Install" -Options $menuOptions -Multi
+
+    if (-not $selectedNames) {
+        Write-Host "  ❌ No selection made." -ForegroundColor Yellow
         return
     }
-    
-    # Verify destination (create if needed)
-    if (-not (Test-Path $dest)) {
-        try {
-            New-Item -ItemType Directory -Path $dest -ErrorAction Stop | Out-Null
-            Write-Host "  ✨ Created directory: $dest" -ForegroundColor Cyan
-        } catch {
-            Write-Host "  ❌ Cannot create directory: $dest" -ForegroundColor Red
-            return
+
+    Write-Host ""
+    Write-Host "  🚀 Starting Installation..." -ForegroundColor Magenta
+    Write-Host "  ───────────────────────────" -ForegroundColor DarkGray
+
+    foreach ($selection in $selectedNames) {
+        # Match selection back to tool object (basic string matching)
+        $tool = $tools | Where-Object { $selection -match [regex]::Escape($_.Name) } | Select-Object -First 1
+        
+        if ($tool) {
+            Write-Host "  ⏳ Installing $($tool.Name)..." -ForegroundColor Yellow
+            try {
+                & $tool.Install
+                Write-Host "  ✅ $($tool.Name) installed/checked." -ForegroundColor Green
+            } catch {
+                Write-Host "  ❌ Failed to install $($tool.Name): $($_.Exception.Message)" -ForegroundColor Red
+            }
         }
     }
     
-    Write-Host "  🚀 Teleporting files..." -ForegroundColor Magenta
-    
-    try {
-        Copy-Item -Path "$source\*" -Destination $dest -Recurse -Force -ErrorAction Stop
-        Write-Host "  ✅ Mission Accomplished!" -ForegroundColor Green
-        Write-Host "     Files have landed at: $dest" -ForegroundColor White
-    } catch {
-        Write-Host "  💥 Teleportation Failed: $($_.Exception.Message)" -ForegroundColor Red
-    }
     Write-Host ""
+    Write-Host "  ✨ All tasks finished!" -ForegroundColor Cyan
+    Write-Host ""
+}
+
+function global:antigravity {
+    [CmdletBinding()]
+    param([switch]$Update)
+
+    # ─── HEADER ────────────────────────────────────────────────────────
+    Write-Host ""
+    Write-Host "  ╔═════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "  ║                🌌 ANTIGRAVITY PROTOCOL INITIATED 🌌                     ║" -ForegroundColor Cyan
+    Write-Host "  ╚═════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "     Preparing to download skills for antigravity google..." -ForegroundColor DarkGray
+    Write-Host ""
+
+    # ─── DOCUMENTATION ─────────────────────────────────────────────────
+    Write-Host "  📚 DOCUMENTATION" -ForegroundColor Yellow
+    Write-Host "  │" -ForegroundColor DarkGray
+    Write-Host "  ├─ GemKit CLI : " -NoNewline -ForegroundColor DarkGray
+    Write-Host "https://github.com/therichardngai-code/gemkit-cli" -ForegroundColor Blue
+    Write-Host "  └─ UI/UX Pro  : " -NoNewline -ForegroundColor DarkGray
+    Write-Host "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill" -ForegroundColor Blue
+    Write-Host ""
+
+    # ─── DEPENDENCIES ──────────────────────────────────────────────────
+    Write-Host "  🛠️  DEPENDENCY CHECK" -ForegroundColor Yellow
+    Write-Host "  │" -ForegroundColor DarkGray
+    
+    # Helper to check/install tools
+    function Check-Tool {
+        param($Name, $Cmd, $InstallScript)
+        $status = if (Get-Command $Cmd -ErrorAction SilentlyContinue) { "Installed" } else { "Missing" }
+        
+        Write-Host "  ├─ $Name" -NoNewline -ForegroundColor DarkGray
+        Write-Host (" " * (12 - $Name.Length) + ": ") -NoNewline -ForegroundColor DarkGray
+        
+        if ($status -eq "Installed") {
+            if ($Update) {
+                Write-Host "🔄 Updating..." -ForegroundColor Cyan
+                try {
+                    & $InstallScript | Out-Null
+                    Write-Host "     └─ ✅ Updated" -ForegroundColor Green
+                } catch {
+                    Write-Host "     └─ ❌ Update Failed" -ForegroundColor Red
+                }
+            } else {
+                Write-Host "✅ Installed" -ForegroundColor Green
+            }
+        } else {
+            Write-Host "⏳ Installing..." -ForegroundColor Yellow
+            try {
+                & $InstallScript
+                if (Get-Command $Cmd -ErrorAction SilentlyContinue) {
+                    Write-Host "     └─ ✅ Install Success" -ForegroundColor Green
+                } else {
+                    Write-Host "     └─ ❌ Install Failed" -ForegroundColor Red
+                }
+            } catch {
+                Write-Host "     └─ ❌ Error: $($_.Exception.Message)" -ForegroundColor Red
+            }
+        }
+    }
+
+    Check-Tool -Name "winget" -Cmd "winget" -InstallScript { install-winget }
+    Check-Tool -Name "uipro-cli" -Cmd "uipro" -InstallScript { npm install -g uipro-cli }
+    Check-Tool -Name "gemkit-cli" -Cmd "gk" -InstallScript { npm install -g gemkit-cli }
+    
+    Write-Host ""
+
+    # ─── TARGET SELECTION ──────────────────────────────────────────────
+    Write-Host "  📂 TARGET SELECTION" -ForegroundColor Yellow
+    Write-Host "  │  Select directory to download file (Enter for current)" -ForegroundColor DarkGray
+    Write-Host "  │" -ForegroundColor DarkGray
+    Write-Host "  └─ Path: " -NoNewline -ForegroundColor Cyan
+    
+    $inputDir = Read-Host
+    if ([string]::IsNullOrWhiteSpace($inputDir)) {
+        $targetDir = Get-Location
+        Write-Host "     Using current: $targetDir" -ForegroundColor DarkGray
+    } else {
+        $targetDir = $inputDir
+    }
+
+    if (-not (Test-Path $targetDir)) {
+        try {
+            New-Item -ItemType Directory -Force -Path $targetDir -ErrorAction Stop | Out-Null
+            Write-Host "     ✨ Created directory: $targetDir" -ForegroundColor Green
+        } catch {
+            Write-Host "     ❌ Error creating directory: $($_.Exception.Message)" -ForegroundColor Red
+            return
+        }
+    }
+
+    # ─── EXECUTION ─────────────────────────────────────────────────────
+    Write-Host ""
+    Write-Host "  🚀 EXECUTING PROTOCOLS..." -ForegroundColor Magenta
+    
+    Push-Location $targetDir
+    try {
+        Write-Host "  ├─ Running: " -NoNewline -ForegroundColor DarkGray
+        Write-Host "gk init" -ForegroundColor White
+        gk init
+
+        Write-Host "  └─ Running: " -NoNewline -ForegroundColor DarkGray
+        Write-Host "uipro init --ai antigravity" -ForegroundColor White
+        uipro init --ai antigravity
+        
+        Write-Host ""
+        Write-Host "  ✨ ANTIGRAVITY MISSION ACCOMPLISHED ✨" -ForegroundColor Green
+        Write-Host ""
+    }
+    catch {
+        Write-Host ""
+        Write-Host "  💥 MISSION FAILED" -ForegroundColor Red
+        Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+function global:uipro {
+    # Fix: Do not use named parameters (param($Command)) because it consumes the first argument (e.g., 'init')
+    # and prevents it from being passed to the executable in @args.
+    
+    if ($args.Count -gt 0 -and $args[0] -eq "update") {
+        Write-Host ""
+        Write-Host "  🔄 UIPRO UPDATE SEQUENCE" -ForegroundColor Cyan
+        Write-Host "  ────────────────────────" -ForegroundColor DarkGray
+        Write-Host "  Updating uipro-cli and gemkit-cli..." -ForegroundColor Yellow
+        
+        npm install -g uipro-cli gemkit-cli
+        
+        if ($?) {
+            Write-Host "  ✅ Update Completed Successfully" -ForegroundColor Green
+        } else {
+            Write-Host "  ❌ Update Failed" -ForegroundColor Red
+        }
+        Write-Host ""
+    } else {
+        # Pass ALL arguments (@args) through to the executable
+        if (Get-Command uipro.cmd -ErrorAction SilentlyContinue) {
+             & uipro.cmd @args
+        } elseif (Get-Command uipro.ps1 -ErrorAction SilentlyContinue) {
+             & uipro.ps1 @args
+        } else {
+             Write-Host "  ❌ 'uipro' command not found. Run 'antigravity' to install." -ForegroundColor Red
+        }
+    }
 }
 
 
@@ -4081,7 +4329,11 @@ function global:god {
     
     try {
         # -i: Interactive, -s: System, -d: Don't wait
-        Start-Process -FilePath $psexec -ArgumentList "-i", "-s", "-d", "powershell.exe -NoExit -Command `"`$Host.UI.RawUI.WindowTitle = '⚡ GOD MODE (SYSTEM)'; cd '$($PWD.Path)'; Write-Host '  💀 WARNING: YOU ARE NOW RUNNING AS SYSTEM!' -ForegroundColor Red; Write-Host '  💀 POWERS UNLIMITED. TREAD LIGHTLY.' -ForegroundColor Red;`"" -Verb RunAs -WindowStyle Normal
+        # Ép buộc nạp profile bằng cách gọi: pwsh -Command ". 'ProfilePath'"
+        $profilePath = $PROFILE
+        $innerCmd = "powershell.exe -NoExit -ExecutionPolicy Bypass -Command `". '$profilePath'; `$Host.UI.RawUI.WindowTitle = '⚡ GOD MODE (SYSTEM)'; cd '$($PWD.Path)'; Write-Host '  💀 WARNING: YOU ARE NOW RUNNING AS SYSTEM!' -ForegroundColor Red; Write-Host '  💀 POWERS UNLIMITED. TREAD LIGHTLY.' -ForegroundColor Red;`""
+        
+        Start-Process -FilePath $psexec -ArgumentList "-i", "-s", "-d", $innerCmd -Verb RunAs -WindowStyle Normal
         Write-Host "  ✨ Done." -ForegroundColor Green
     } catch {
         Write-Host "  ❌ Lỗi khởi chạy: $_" -ForegroundColor Red
@@ -4157,73 +4409,115 @@ function global:def {
     }
 }
 
-# 18.5 🦠 AVKILL (The Anti-Virus Destroyer)
+# 18.5 🦠 AVKILL (DEATH MARK EDITION)
 function global:avkill {
-    # Yêu cầu Ring 4 (TI) hoặc 5 (PowerUp) vì AV thường có Self-Defense
+    # Yêu cầu tối thiểu TrustedInstaller (Ring 4)
     if (-not (Assert-Ring -ReqLevel 4 -CmdName "avkill")) { return }
     
-    # Auto PowerUp if not already
     [NativeKiller]::EnablePrivilege("SeDebugPrivilege") | Out-Null
 
     Write-Host ""
-    Write-Host "  🦠 AV KILLER: HUNTER PROTOCOL INITIATED" -ForegroundColor Red
-    Write-Host "  ⚠️  Cảnh báo: Cần quyền TrustedInstaller + PowerUp để có hiệu quả cao nhất." -ForegroundColor Yellow
-    Write-Host "  ──────────────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "  🦠 AV KILLER: DEATH MARK PROTOCOL" -ForegroundColor Red
+    Write-Host "  ──────────────────────────────────────────────────" -ForegroundColor DarkGray
 
-    # Danh sách các tiến trình AV phổ biến (Process Names)
-    $TargetList = @(
-        # Microsoft
-        "MsMpEng", "NisSrv", "Sense", "SecurityHealthService",
-        # Kaspersky
-        "avp", "avpui", "kavf", "kavsvc",
-        # ESET
-        "ekrn", "egui", "ecmd",
-        # Avast / AVG
-        "AvastSvc", "AvastUI", "avgwd", "avgnt",
-        # McAfee
-        "mcshield", "mfevtps", "mfeesp", "mfemms",
-        # Bitdefender
-        "bdagent", "vsserv", "bdservicehost",
-        # Norton / Symantec
-        "NortonSecurity", "ccSvcHst",
-        # Malwarebytes
-        "mbam", "mbamservice", "mbamtray"
-    )
+    # Map: Process Name -> Service Name
+    $Targets = @{
+        "MsMpEng" = "WinDefend"; "NisSrv" = "WdNisSvc"; "Sense" = "Sense"; 
+        "SecurityHealthService" = "SecurityHealthService"; "WdBnService" = "WdBnService";
+        "avp" = "AVP"; "ekrn" = "ekrn"; "AvastSvc" = "Avast"; "mcshield" = "McAfeeFramework";
+        "bdservicehost" = "vsserv"; "mbamservice" = "MBAMService"
+    }
 
-    $killCount = 0
-    
-    foreach ($target in $TargetList) {
-        $procs = Get-Process -Name $target -ErrorAction SilentlyContinue
-        
+    $hitList = @()
+
+    # 1. SCANNING
+    foreach ($procName in $Targets.Keys) {
+        $procs = Get-Process -Name $procName -ErrorAction SilentlyContinue
         if ($procs) {
             foreach ($p in $procs) {
-                Write-Host "  🎯 Phát hiện mục tiêu: " -NoNewline -ForegroundColor White
-                Write-Host "$($p.Name) " -NoNewline -ForegroundColor Yellow
-                Write-Host "(PID: $($p.Id))" -ForegroundColor DarkGray
-                
-                # Dùng Native API Kill (Mạnh nhất)
-                $result = [NativeKiller]::ZeroKill($p.Id)
-                
-                Write-Host "     ⚡ Native Strike: " -NoNewline -ForegroundColor DarkGray
-                if ($result -eq "Success") {
-                    Write-Host "DIỆT THÀNH CÔNG" -ForegroundColor Red
-                    $killCount++
-                } else {
-                    Write-Host "THẤT BẠI ($result)" -ForegroundColor DarkGray
-                    # Nếu thất bại, thử Taskkill (đôi khi taskkill /f lại ăn được 1 số case lạ)
-                    taskkill /F /PID $p.Id 2>$null | Out-Null
-                }
+                Write-Host "  🎯 FOUND: $($p.Name) (PID: $($p.Id))" -ForegroundColor Yellow
+                $hitList += @{ Name=$p.Name; Svc=$Targets[$procName]; Id=$p.Id }
+            }
+        }
+    }
+
+    if ($hitList.Count -eq 0) {
+        Write-Host "  🤷 Không tìm thấy mục tiêu nào đang chạy." -ForegroundColor DarkGray
+        Write-Host ""
+        return
+    }
+
+    Write-Host ""
+    Write-Host "  ⚔️  EXECUTING KILL CHAIN..." -ForegroundColor Cyan
+    
+    foreach ($item in $hitList) {
+        Write-Host "  [" -NoNewline -ForegroundColor DarkGray
+        Write-Host "☠️" -NoNewline -ForegroundColor Red
+        Write-Host "] Target: $($item.Name)" -ForegroundColor White
+        
+        # PHASE 1: TRY INSTANT KILL (Native API)
+        $killResult = [NativeKiller]::ZeroKill($item.Id)
+        
+        if ($killResult -eq "Success") {
+            Write-Host "      ⚡ STATUS: TERMINATED (INSTANT KILL)" -ForegroundColor Green
+        } else {
+            Write-Host "      🛡️ STATUS: RESISTED ($killResult)" -ForegroundColor DarkGray
+            
+            # PHASE 2: GOD SLAYER (Registry Annihilation)
+            # Chỉ hoạt động nếu đang ở chế độ TrustedInstaller
+            if ((Get-RingLevel) -ge 4) {
+                Write-Host "      🔨 ACTIVATING GOD SLAYER (Registry Destroy)..." -ForegroundColor Magenta
+                godslayer -ServiceName $item.Svc -Silent $true
+            } else {
+                Write-Host "      ❌ Cần quyền 'ti' để phá hủy Registry!" -ForegroundColor Red
             }
         }
     }
     
     Write-Host ""
-    if ($killCount -gt 0) {
-        Write-Host "  ☠️  Tổng số AV Process bị diệt: $killCount" -ForegroundColor Green
-    } else {
-        Write-Host "  🤷 Không tìm thấy hoặc không diệt được Process nào." -ForegroundColor DarkGray
-    }
+    Write-Host "  🏁 REPORT:" -ForegroundColor Cyan
+    Write-Host "  Nếu trạng thái là 'REGISTRY DESTROYED', AV đã bị vô hiệu hóa." -ForegroundColor Yellow
+    Write-Host "  👉 HÃY KHỞI ĐỘNG LẠI MÁY ĐỂ HOÀN TẤT VIỆC HỦY DIỆT." -ForegroundColor Green
     Write-Host ""
+}
+
+# 18.6 💀 GOD SLAYER (Registry Annihilator)
+function global:godslayer {
+    param(
+        [string]$ServiceName,
+        [bool]$Silent = $false
+    )
+    
+    $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
+    
+    if (-not (Test-Path $regPath)) {
+        if (-not $Silent) { Write-Host "  ⚪ Service '$ServiceName' not found in Registry." -ForegroundColor DarkGray }
+        return
+    }
+
+    try {
+        # 1. Disable Service (Start = 4)
+        Set-ItemProperty -Path $regPath -Name "Start" -Value 4 -Type DWord -ErrorAction Stop
+        
+        # 2. Corrupt ImagePath (Neutering)
+        # Trỏ về svchost rỗng để nó không thể load file exe của AV nữa
+        Set-ItemProperty -Path $regPath -Name "ImagePath" -Value "svchost.exe -k LocalService" -ErrorAction SilentlyContinue
+        
+        # 3. Remove FailureActions (Prevent Auto-Restart)
+        Remove-ItemProperty -Path $regPath -Name "FailureActions" -ErrorAction SilentlyContinue
+
+        if ($Silent) {
+            Write-Host "      ✅ RESULT: REGISTRY DESTROYED (Start=Disabled)" -ForegroundColor Green
+        } else {
+            Write-Host "  ✅ Service '$ServiceName' has been NEUTERED." -ForegroundColor Green
+        }
+    } catch {
+        if ($Silent) {
+            Write-Host "      ❌ RESULT: FAILED (Access Denied?)" -ForegroundColor Red
+        } else {
+            Write-Host "  ❌ Failed to slay '$ServiceName': $($_.Exception.Message)" -ForegroundColor Red
+        }
+    }
 }
 
 # 19. 💣 NUKE (Destroy Process/Service Forcefully)
@@ -4836,7 +5130,10 @@ function global:ti {
 
     if ($nsudoPath) {
         Write-Host "  🚀 Launching via NSudo..." -ForegroundColor Green
-        Start-Process $nsudoPath.Source -ArgumentList "-U:T -P:E powershell.exe" -Verb RunAs
+        # Ép buộc nạp profile bằng cách gọi: pwsh -Command ". 'ProfilePath'"
+        $profilePath = $PROFILE
+        $argList = "-U:T -P:E powershell.exe -NoExit -ExecutionPolicy Bypass -Command . '$profilePath'; Set-Location '$PWD'"
+        Start-Process $nsudoPath.Source -ArgumentList $argList -Verb RunAs
         return
     }
     
@@ -4997,4 +5294,3 @@ function global:vmx {
 
 # --- END OF PROFILE ---
 Show-StartupBanner
-

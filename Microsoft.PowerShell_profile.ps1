@@ -1,4 +1,4 @@
-﻿# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║                        🎨 POWERSHELL PROFILE PRO                              ║
 # ║                           Path: $PROFILE                                      ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -1430,7 +1430,7 @@ function global:uipro {
 
 
 # Thông tin hệ thống - Enhanced Version
-function global:sysinfo { & "C:\Users\Administrator.ADMIN\Documents\WindowsPowerShell\sysinfo.ps1" }
+function global:sysinfo { & "C:\Users\Administrator.ADMIN\Documents\WindowsPowerShell\sysinfo.exe" }
 
 #region ═══════════════════════════════════════════════════════════════════════════
 #        🌍 TUI ENVIRONMENT MANAGER (Interactive)
@@ -2864,96 +2864,10 @@ function global:nano {
 }
 
 # 💎 Danh sách tính năng đẹp (Features Distribution Table)
-function global:features {
-    Clear-Host
-    
-    # --- Config ---
-    $i = @{
-        Left  = [char]0xe0b6; Right = [char]0xe0b4
-        Sep   = "│"
-        Nav   = "🚀"; File  = "📦"; Search= "🔍"; Sys   = "💻"
-        Arrow = "➜"
-    }
-    
-    # --- Data ---
-    $cats = @(
-        @{
-            Name  = "NAVIGATION"
-            Color = "Magenta"
-            Icon  = $i.Nav
-            Items = @(
-                @{ Cmd="des";         Desc="Về Desktop siêu tốc" }
-                @{ Cmd="cdd";         Desc="Alias của cd (hỗ trợ lịch sử)" }
-                @{ Cmd="mkcd <name>"; Desc="Tạo & vào thư mục ngay lập tức" }
-                @{ Cmd="..n";         Desc="Lên n cấp (vd: ..2, ..3)" }
-                @{ Cmd="-";           Desc="Quay lại thư mục trước" }
-            )
-        },
-            @{
-            Name  = "FILE OPS"
-            Color = "Green"
-            Icon  = $i.File
-            Items = @(
-                @{ Cmd="mkfile <files>"; Desc="Tạo nhiều file nhanh chóng" }
-                @{ Cmd="nano <file>"; Desc="Sửa file (Smart Editor)" }
-                @{ Cmd="antigravity"; Desc="Copy kho 'SuperSkill' về đây" }
-                @{ Cmd="open .";      Desc="Mở Explorer tại thư mục này" }
-                @{ Cmd="del <path>";  Desc="Xóa an toàn (Hỏi trước khi xóa)" }
-            )
-        },
-        @{
-            Name  = "SEARCH & ANA"
-            Color = "Yellow"
-            Icon  = $i.Search
-            Items = @(
-                @{ Cmd="ff <name>";   Desc="Tìm file theo tên cực nhanh" }
-                @{ Cmd="ftext <txt>"; Desc="Tìm nội dung bên trong file" }
-                @{ Cmd="sizesort";    Desc="Phân tích dung lượng thư mục đẹp" }
-            )
-        },
-        @{
-            Name  = "SYSTEM"
-            Color = "Cyan"
-            Icon  = $i.Sys
-            Items = @(
-                @{ Cmd="sysinfo";     Desc="Xem thông tin hệ thống chi tiết" }
-                @{ Cmd="features";    Desc="Xem bảng này" }
-            )
-        }
-    )
+function global:features { & "C:\Users\Administrator.ADMIN\Documents\WindowsPowerShell\features.exe" }
 
-    # --- Render ---
-    Write-Host "`n"
-    Write-Host "  ╔════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║             💎 ULTIMATE FEATURES MATRIX                ║" -ForegroundColor Cyan
-    Write-Host "  ╚════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
-    Write-Host ""
-
-    foreach ($cat in $cats) {
-        # Render Header Pill
-        Write-Host "  " -NoNewline
-        Write-Host $i.Left -NoNewline -ForegroundColor $cat.Color
-        Write-Host " $($cat.Icon) $($cat.Name) " -NoNewline -ForegroundColor Black -BackgroundColor $cat.Color
-        Write-Host $i.Right -ForegroundColor $cat.Color
-        
-        # Render Items Table
-        Write-Host "  ┌──────────────────────┬─────────────────────────────────┐" -ForegroundColor DarkGray
-        
-        foreach ($item in $cat.Items) {
-            Write-Host "  │ " -NoNewline -ForegroundColor DarkGray
-            Write-Host $item.Cmd.PadRight(20) -NoNewline -ForegroundColor White
-            Write-Host " │ " -NoNewline -ForegroundColor DarkGray
-            Write-Host $item.Desc.PadRight(31) -NoNewline -ForegroundColor $cat.Color
-            Write-Host " │" -ForegroundColor DarkGray
-        }
-        
-        Write-Host "  └──────────────────────┴─────────────────────────────────┘" -ForegroundColor DarkGray
-        Write-Host ""
-    }
-    
-    Write-Host "  💡 Tip: Nhấn Tab để tự động hoàn thành lệnh." -ForegroundColor DarkGray
-    Write-Host "`n"
-}
+# Speedtest CLI
+function global:speedtest { & "C:\Users\Administrator.ADMIN\Documents\WindowsPowerShell\speedtest.exe" $args }
 
 # Quick jump alias
 function global:j { bm go $args[0] }
@@ -3703,181 +3617,6 @@ function Show-StartupBanner {
 }
 
 # 12. 📚 LIST ALL FEATURES (INTERACTIVE TABBED DASHBOARD)
-function global:features {
-    # 1. Định nghĩa dữ liệu
-    $tabs = [ordered]@{
-        "📂 CORE" = @{
-            Color = "Cyan"
-            Items = @(
-                @{ C="cmd (Ctrl+P)"; D="Command Palette - Menu lệnh nhanh" },
-                @{ C="cd ..."; D="Smart CD (History, Auto-drive)" },
-                @{ C="mkcd <dir>"; D="Tạo thư mục & CD vào luôn" },
-                @{ C="mkfile"; D="Tạo file + thư mục cha tự động" },
-                @{ C="nano"; D="Trình sửa file đơn giản" },
-                @{ C="open ."; D="Mở trong File Explorer" },
-                @{ C="touch"; D="Tạo file / Cập nhật timestamp" },
-                @{ C="del"; D="Xóa an toàn có xác nhận" },
-                @{ C="fastcopy"; D="Copy đa luồng (Robocopy wrapper)" },
-                @{ C="antigravity"; D="Teleport files (Siêu cấp)" },
-                @{ C="compress / extract"; D="Nén & Giải nén đa năng" },
-                @{ C="tree2 / sizesort"; D="Xem cây thư mục & Phân tích size" },
-                @{ C="count"; D="Đếm số lượng file/folder" }
-            )
-        }
-        "🔍 FIND" = @{
-            Color = "Blue"
-            Items = @(
-                @{ C="ff <name>"; D="Tìm file theo tên" },
-                @{ C="ftext <text>"; D="Tìm nội dung trong file" },
-                @{ C="grep <regex>"; D="Tìm kiếm Regex (Select-String)" },
-                @{ C="which <cmd>"; D="Xem đường dẫn lệnh" },
-                @{ C="bm"; D="Quản lý Bookmark (TUI)" },
-                @{ C="j <name>"; D="Nhảy nhanh đến Bookmark" },
-                @{ C="web <q>"; D="Tìm kiếm Google/Github/StackOverflow" }
-            )
-        }
-        "🧰 SYSTEM" = @{
-            Color = "Magenta"
-            Items = @(
-                @{ C="rings"; D="Kiểm tra cấp độ quyền lực" },
-                @{ C="sudo / drop"; D="Admin Mode / User Mode" },
-                @{ C="god / ti"; D="SYSTEM Mode / TrustedInstaller" },
-                @{ C="sysinfo"; D="Thông tin hệ thống chi tiết" },
-                @{ C="top"; D="Xem process ngốn RAM nhất" },
-                @{ C="cleantemp"; D="Dọn dẹp rác hệ thống sâu" },
-                @{ C="star / unstar"; D="Khóa/Mở khóa cửa sổ (Chống tắt)" },
-                @{ C="install / uninstall"; D="Cài đặt/Gỡ bỏ phần mềm (Winget)" },
-                @{ C="upgrade"; D="Cập nhật toàn bộ phần mềm" },
-                @{ C="reload / editprofile"; D="Nạp lại / Chỉnh sửa Profile" }
-            )
-        }
-        "☢️ NUCLEAR" = @{
-            Color = "Red"
-            Items = @(
-                @{ C="powerup"; D="⚡ Unlock ALL Privileges (Token Overdrive)" },
-                @{ C="zkill <pid>"; D="💀 Native API Kill (Bypass)" },
-                @{ C="def off/on"; D="🛡️ Tắt/Bật Windows Defender" },
-                @{ C="avkill"; D="🦠 Diệt MỌI Antivirus (Kaspersky/ESET...)" },
-                @{ C="nuke <name>"; D="💣 Hủy diệt Process & Service" },
-                @{ C="ghost"; D="👻 Xóa sạch Event Logs & History" }
-            )
-        }
-        "🌀 HYPER" = @{
-            Color = "DarkCyan"
-            Items = @(
-                @{ C="hyp"; D="Kiểm tra trạng thái Hypervisor / VBS" },
-                @{ C="uefi"; D="Đọc thông tin Firmware / Secure Boot" },
-                @{ C="vmx <vm> <cmd>"; D="Tiêm code vào VM (PowerShell Direct)" },
-                @{ C="dps / dpsa"; D="[Docker] Xem containers" },
-                @{ C="dstop / dclean"; D="[Docker] Quản lý containers" }
-            )
-        }
-        "🌐 NET" = @{
-            Color = "Green"
-            Items = @(
-                @{ C="myip"; D="Xem Public IP & Local IP" },
-                @{ C="ports"; D="Xem các port đang mở" },
-                @{ C="killport <p>"; D="Diệt process đang chiếm port" },
-                @{ C="up <url>"; D="Ping kiểm tra web sống/chết" },
-                @{ C="weather"; D="Xem dự báo thời tiết" }
-            )
-        }
-        "🛠️ TOOLS" = @{
-            Color = "Yellow"
-            Items = @(
-                @{ C="todo"; D="Quản lý công việc (TUI)" },
-                @{ C="env / als"; D="Quản lý Environment / Alias (TUI)" },
-                @{ C="calc"; D="Máy tính nhanh" },
-                @{ C="passgen"; D="Tạo mật khẩu mạnh" },
-                @{ C="timer"; D="Đồng hồ đếm ngược" },
-                @{ C="short"; D="Rút gọn link (is.gd)" },
-                @{ C="cheat"; D="Cheat Sheet lệnh nhanh" },
-                @{ C="clip / paste"; D="Clipboard tools" },
-                @{ C="hh / c"; D="Lịch sử lệnh / Xóa màn hình" }
-            )
-        }
-    }
-
-    $tabNames = $tabs.Keys | ForEach-Object { $_ }
-    $activeIdx = 0
-    
-    # Ẩn con trỏ chuột
-    [Console]::CursorVisible = $false
-    
-    try {
-        while ($true) {
-            Clear-Host
-            
-            # --- HEADER ---
-            Write-Host ""
-            Write-Host "  🌟 POWERSHELL PRO FEATURES" -ForegroundColor Cyan
-            Write-Host "  Use Left/Right Arrow to switch tabs. Esc/Q to quit." -ForegroundColor DarkGray
-            Write-Host ""
-            
-            # --- TABS BAR ---
-            Write-Host "  " -NoNewline
-            for ($i = 0; $i -lt $tabNames.Count; $i++) {
-                $name = $tabNames[$i]
-                $isActive = ($i -eq $activeIdx)
-                $tabColor = $tabs[$name].Color
-                
-                if ($isActive) {
-                    Write-Host " " -NoNewline -BackgroundColor $tabColor
-                    Write-Host "$name" -NoNewline -ForegroundColor Black -BackgroundColor $tabColor
-                    Write-Host " " -NoNewline -BackgroundColor $tabColor
-                } else {
-                    Write-Host " $name " -NoNewline -ForegroundColor DarkGray
-                }
-                Write-Host "  " -NoNewline -BackgroundColor Black
-            }
-            Write-Host "`n"
-
-            # --- CONTENT ---
-            $currentTabName = $tabNames[$activeIdx]
-            $currentData = $tabs[$currentTabName]
-            $items = $currentData.Items
-            $themeColor = $currentData.Color
-            
-            # Border Top
-            Write-Host "  $($Script:TUI.BoxChars.TL)$("─"*70)$($Script:TUI.BoxChars.TR)" -ForegroundColor $themeColor
-            
-            foreach ($item in $items) {
-                Write-Host "  $($Script:TUI.BoxChars.V) " -NoNewline -ForegroundColor $themeColor
-                Write-Host ("{0,-25}" -f $item.C) -NoNewline -ForegroundColor $themeColor
-                Write-Host " : " -NoNewline -ForegroundColor DarkGray
-                Write-Host ("{0,-41}" -f $item.D) -NoNewline -ForegroundColor White
-                Write-Host "$($Script:TUI.BoxChars.V)" -ForegroundColor $themeColor
-            }
-            
-            # Fill empty lines to maintain height
-            for ($k = $items.Count; $k -lt 14; $k++) {
-                Write-Host "  $($Script:TUI.BoxChars.V)$(" "*70)$($Script:TUI.BoxChars.V)" -ForegroundColor $themeColor
-            }
-            
-            # Border Bottom
-            Write-Host "  $($Script:TUI.BoxChars.BL)$("─"*70)$($Script:TUI.BoxChars.BR)" -ForegroundColor $themeColor
-            
-            # --- KEY HANDLING ---
-            $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-            
-            switch ($key.VirtualKeyCode) {
-                37 { # Left
-                    $activeIdx--
-                    if ($activeIdx -lt 0) { $activeIdx = $tabNames.Count - 1 }
-                }
-                39 { # Right
-                    $activeIdx++
-                    if ($activeIdx -ge $tabNames.Count) { $activeIdx = 0 }
-                }
-                { $_ -in 27, 81 } { # Esc or Q
-                    return
-                }
-            }
-        }
-    } finally {
-        [Console]::CursorVisible = $true
-    }
-}
 
 #region ═══════════════════════════════════════════════════════════════════════════
 #        ⭐ WINDOW PROTECTION (STAR/UNSTAR) - ADVANCED VERSION
@@ -4020,6 +3759,8 @@ function global:star {
         
         if ($success) {
             $global:WindowProtected = $true
+            $global:OriginalTitle = $Host.UI.RawUI.WindowTitle
+            $Host.UI.RawUI.WindowTitle = "!STAR DON'T CLOSE"
             
             Write-Host ""
             Write-Host "  ⭐ WINDOW PROTECTION ACTIVATED" -ForegroundColor Cyan
@@ -4050,6 +3791,7 @@ function global:unstar {
         
         if ($success -or $true) { # Sometimes returns false but works
             $global:WindowProtected = $false
+            if ($global:OriginalTitle) { $Host.UI.RawUI.WindowTitle = $global:OriginalTitle }
             
             Write-Host ""
             Write-Host "  🔓 WINDOW UNLOCKED" -ForegroundColor Yellow
@@ -5079,3 +4821,65 @@ function global:vmx {
 
 # --- END OF PROFILE ---
 Show-StartupBanner
+
+# ══════════════════════════════════════════════════════════════════
+#              🛠️ SMART PASTE FOR CURL & BASH COMMANDS
+# ══════════════════════════════════════════════════════════════════
+
+# 1. Xóa alias curl mặc định (để dùng curl.exe thật thay vì Invoke-WebRequest)
+if (Test-Path Alias:curl) { Remove-Item Alias:curl -ErrorAction SilentlyContinue }
+
+# 2. Hàm xử lý dán lệnh nhiều dòng (Bash style)
+function global:Invoke-SmartPaste {
+    Write-Host ""
+    Write-Host "  📋 PASTE MODE (BASH/CURL COMPATIBLE)" -ForegroundColor Cyan
+    Write-Host "  ────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "  👉 Hãy Paste lệnh dài của bạn vào dưới đây." -ForegroundColor Yellow
+    Write-Host "  👉 Nhấn Enter 2 lần (trên dòng trống) để chạy." -ForegroundColor DarkGray
+    Write-Host ""
+
+    $lines = @()
+    while ($true) {
+        # Đọc từng dòng input thô
+        $line = Read-Host ">>"
+        
+        # Nếu gặp dòng trống thì dừng và chạy
+        if ([string]::IsNullOrWhiteSpace($line)) { break }
+        
+        $lines += $line
+    }
+
+    if ($lines.Count -eq 0) { return }
+
+    # Nối các dòng lại, xử lý dấu \ cuối dòng của Bash
+    $fullCommand = $lines -join " "
+    $fullCommand = $fullCommand.Replace(" \ ", " ").Replace(" \", " ")
+
+    Write-Host ""
+    Write-Host "  🚀 Executing..." -ForegroundColor Green
+    
+    try {
+        # Dùng cmd /c để chạy vì nó tương thích tốt nhất với cú pháp curl 'single quote'
+        cmd /c $fullCommand
+    } catch {
+        Write-Host "  ❌ Error: $_" -ForegroundColor Red
+    }
+    Write-Host ""
+}
+
+# 3. Bắt phím Enter để kích hoạt khi gõ "!"
+Set-PSReadLineKeyHandler -Key Enter -ScriptBlock {
+    $line = $null
+    $cursor = $null
+    [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+
+    # Nếu dòng lệnh chỉ chứa đúng chữ "!" (hoặc khoảng trắng + !)
+    if ($line.Trim() -eq '!') {
+        [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
+        [Microsoft.PowerShell.PSConsoleReadLine]::Insert('Invoke-SmartPaste')
+        [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
+    } else {
+        # Nếu không phải "!", hành xử như phím Enter bình thường
+        [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
+    }
+}

@@ -122,6 +122,12 @@ type SystemInfo struct {
 	BootTime    time.Time
 	Procs       uint64
 
+	// Mainboard & BIOS (New)
+	BoardName     string
+	BoardVendor   string
+	BiosVersion   string
+	ProductSerial string
+
 	// CPU
 	CPUModel    string
 	CPUCores    int
@@ -272,6 +278,9 @@ func collectSystemInfo() SystemInfo {
 		info.Username = u.Username
 	}
 
+	// Extended Info (Mainboard/BIOS)
+	collectExtendedInfo(&info)
+
 	// CPU info
 	if cpuInfo, err := cpu.Info(); err == nil && len(cpuInfo) > 0 {
 		info.CPUModel = cpuInfo[0].ModelName
@@ -372,6 +381,40 @@ func collectSystemInfo() SystemInfo {
 	info.TopMem = getTopProcesses("mem", 5)
 
 	return info
+}
+
+func collectExtendedInfo(info *SystemInfo) {
+	if runtime.GOOS != "windows" {
+		return
+	}
+
+	// BaseBoard
+	cmd := exec.Command("wmic", "baseboard", "get", "product,manufacturer,serialnumber", "/format:csv")
+	if out, err := cmd.Output(); err == nil {
+		lines := strings.Split(string(out), "\n")
+		for _, line := range lines {
+			parts := strings.Split(strings.TrimSpace(line), ",")
+			if len(parts) >= 4 && parts[1] != "Manufacturer" {
+				info.BoardVendor = parts[1]
+				info.BoardName = parts[2]
+				info.ProductSerial = parts[3]
+				break
+			}
+		}
+	}
+
+	// BIOS
+	cmd = exec.Command("wmic", "bios", "get", "smbiosbiosversion", "/format:csv")
+	if out, err := cmd.Output(); err == nil {
+		lines := strings.Split(string(out), "\n")
+		for _, line := range lines {
+			parts := strings.Split(strings.TrimSpace(line), ",")
+			if len(parts) >= 2 && parts[1] != "SMBIOSBIOSVersion" {
+				info.BiosVersion = parts[1]
+				break
+			}
+		}
+	}
 }
 
 func getTopProcesses(sortBy string, limit int) []ProcessInfo {
@@ -1078,6 +1121,27 @@ func (m Model) renderOverview() string {
 		content.WriteString(m.renderInfoLine("Arch", info.Arch, currentTheme.Info))
 		content.WriteString(m.renderInfoLine("Uptime", formatDuration(info.Uptime), currentTheme.Warning))
 		content.WriteString(m.renderInfoLine("Processes", fmt.Sprintf("%d", info.Procs), currentTheme.Primary))
+		return content.String()
+	}))
+
+	// Hardware Info box (New)
+	s.WriteString("\n")
+	s.WriteString(m.renderBox("🛠️ HARDWARE DETAILS", currentTheme.Info, func() string {
+		var content strings.Builder
+		if info.BoardName != "" {
+			content.WriteString(m.renderInfoLine("Mainboard", info.BoardVendor+" "+info.BoardName, currentTheme.Secondary))
+		}
+		if info.BiosVersion != "" {
+			content.WriteString(m.renderInfoLine("BIOS Ver", info.BiosVersion, currentTheme.TextMuted))
+		}
+		if info.ProductSerial != "" {
+			content.WriteString(m.renderInfoLine("Serial #", info.ProductSerial, currentTheme.TextMuted))
+		}
+		if info.GPUName != "" {
+			content.WriteString(m.renderInfoLine("GPU", info.GPUName, currentTheme.GPU))
+			content.WriteString(m.renderInfoLine("VRAM", formatBytes(info.GPUVRAM), currentTheme.Text))
+			content.WriteString(m.renderInfoLine("Driver", info.GPUDriver, currentTheme.TextMuted))
+		}
 		return content.String()
 	}))
 

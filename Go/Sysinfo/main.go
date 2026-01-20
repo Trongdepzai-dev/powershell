@@ -444,10 +444,10 @@ func getWindowsGPU() (name, driver string, vram uint64) {
 //                         INITIALIZATION
 // ══════════════════════════════════════════════════════════════════
 
-func initialModel() Model {
+func initialModel() *Model {
 	themeNames := []string{"Neon", "Matrix", "Cyberpunk", "Ocean"}
 
-	return Model{
+	return &Model{
 		loading:    true,
 		loadingMsg: "Initializing...",
 		tabs: []Tab{
@@ -464,7 +464,7 @@ func initialModel() Model {
 	}
 }
 
-func (m Model) Init() tea.Cmd {
+func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		tea.EnableMouseAllMotion,
 		tickCmd(),
@@ -607,7 +607,7 @@ func max(a, b int) int {
 //                         UPDATE
 // ══════════════════════════════════════════════════════════════════
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tickMsg:
 		m.frame++
@@ -654,7 +654,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
@@ -712,7 +712,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	m.mouseX = msg.X
 	m.mouseY = msg.Y
 
@@ -864,7 +864,7 @@ func formatNetworkReport(nets []NetworkInfo) string {
 //                         VIEW
 // ══════════════════════════════════════════════════════════════════
 
-func (m Model) View() string {
+func (m *Model) View() string {
 	if m.width < 60 || m.height < 20 {
 		return lipgloss.Place(m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
@@ -887,7 +887,7 @@ func (m Model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
-func (m Model) renderLoading() string {
+func (m *Model) renderLoading() string {
 	logo := `
   ███████╗██╗   ██╗███████╗████████╗███████╗███╗   ███╗
   ██╔════╝╚██╗ ██╔╝██╔════╝╚══██╔══╝██╔════╝████╗ ████║

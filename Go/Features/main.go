@@ -72,17 +72,96 @@ var (
 	dots        = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 	pulse       = []string{"○", "◔", "◑", "◕", "●", "◕", "◑", "◔"}
 	progressBar = []string{"▱", "▰"}
+
+	// ══════════════════════════════════════════════════════════════════
+	//                    ENHANCED ANIMATION PATTERNS
+	// ══════════════════════════════════════════════════════════════════
+
+	// Wave animations
+	waveChars = []string{"▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂"}
+
+	// Sparkle effects
+	sparkles = []string{"✦", "✧", "⋆", "✧", "✦", "★", "✦", "✧"}
+
+	// Border glow
+	glowFrames = []string{"░", "▒", "▓", "█", "▓", "▒", "░"}
+
+	// Loading bars
+	loadBars = []string{"▰▱▱▱▱", "▰▰▱▱▱", "▰▰▰▱▱", "▰▰▰▰▱", "▰▰▰▰▰", "▰▰▰▰▱", "▰▰▰▱▱", "▰▰▱▱▱"}
+
+	// Radar sweep
+	radar = []string{"◜", "◝", "◞", "◟"}
+
+	// DNA helix
+	dna = []string{"⠋⠙", "⠹⠸", "⠼⠴", "⠦⠧", "⠇⠏"}
+
+	// Command icons mapping
+	cmdIcons = map[string]string{
+		// Navigation
+		"des": "🖥️", "dl": "📥", "docs": "📄", "cdd": "📂", "bm": "🔖",
+		"j": "⚡", "..": "⬆️", "...": "⏫", "-": "↩️", "home": "🏠", "root": "💾",
+		// Files
+		"mkfile": "📝", "touch": "👆", "nano": "✏️", "fastcopy": "⚡",
+		"extract": "📦", "compress": "🗜️", "trash": "🗑️", "open": "📂", "tree2": "🌳",
+		// System
+		"sysinfo": "💻", "top": "📊", "ports": "🔌", "killport": "💀",
+		"myip": "🌐", "speedtest": "🚀", "battery": "🔋", "cleantemp": "🧹", "up": "📡",
+		// Dev
+		"install": "📦", "calc": "🔢", "json": "📋", "passgen": "🔐",
+		"timer": "⏱️", "todo": "✅", "short": "🔗", "cheat": "📖", "web": "🔍",
+		// Admin
+		"sudo": "👑", "god": "⚡", "ti": "🛡️", "drop": "👤",
+		"def": "🛡️", "avkill": "💀", "nuke": "☢️", "ghost": "👻", "powerup": "⚡",
+		// Windows
+		"star": "📌", "unstar": "📍", "wm": "🪟", "hyp": "💿",
+		"uefi": "⚙️", "vmx": "🖥️", "cmd": "⌨️",
+		// Search
+		"ff": "🔎", "ftext": "📝", "dup": "👯", "recent": "🕐",
+		"sizesort": "📏", "count": "🔢", "hh": "📜",
+		// Git
+		"gs": "📊", "ga": "➕", "gc": "💾", "gp": "⬆️", "gl": "⬇️",
+		"glog": "📜", "gd": "📝", "gb": "🌿", "gco": "🔀", "gst": "📦",
+	}
+
+	// Decorative corners
+	corners = struct {
+		topLeft, topRight, bottomLeft, bottomRight string
+		heavy, double, rounded                      [4]string
+	}{
+		topLeft: "╭", topRight: "╮", bottomLeft: "╰", bottomRight: "╯",
+		heavy:   [4]string{"┏", "┓", "┗", "┛"},
+		double:  [4]string{"╔", "╗", "╚", "╝"},
+		rounded: [4]string{"╭", "╮", "╰", "╯"},
+	}
 )
+
+// Enhanced gradient collection
+var enhancedGradients = map[string][]string{
+	"aurora":    {"#00D4FF", "#7B2FFF", "#FF2E63", "#FFE600"},
+	"plasma":    {"#FF6B6B", "#4ECDC4", "#45B7D1", "#96E6A1"},
+	"synthwave": {"#FF00FF", "#00FFFF", "#FF6EC7", "#00FF87"},
+	"volcano":   {"#FF4500", "#FF6347", "#DC143C", "#8B0000"},
+	"rainbow":   {"#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#8B00FF"},
+	"gold":      {"#FFD700", "#FFA500", "#FF8C00", "#DAA520"},
+	"cosmic":    {"#9B59B6", "#3498DB", "#1ABC9C", "#F39C12", "#E74C3C"},
+	"ice":       {"#E0FFFF", "#87CEEB", "#00CED1", "#4169E1"},
+	"blood":     {"#8B0000", "#DC143C", "#FF0000", "#FF4500"},
+	"toxic":     {"#00FF00", "#32CD32", "#7FFF00", "#ADFF2F"},
+}
 
 // ══════════════════════════════════════════════════════════════════
 //                         DATA MODELS
 // ══════════════════════════════════════════════════════════════════
 
 type Command struct {
-	Cmd  string
-	Desc string
-	Hot  string
-	Tags []string
+	Cmd     string
+	Desc    string
+	Hot     string
+	Tags    []string
+	Example string
+	Usage   string
+	Since   string
+	Danger  bool
 }
 
 type Category struct {
@@ -129,6 +208,15 @@ type Model struct {
 	copied      bool
 	copyTimer   int
 
+	// Toast notification
+	toast      string
+	toastType  string // "success", "error", "info", "warning"
+	toastTimer int
+
+	// Statistics
+	totalCmds  int
+	usageStats map[string]int
+
 	// Dimensions
 	width  int
 	height int
@@ -143,6 +231,18 @@ type Model struct {
 	hitBoxes    []HitBox
 	lastClick   time.Time
 	doubleClick bool
+
+	// Visual effects
+	pulsePhase  float64
+	glowIntense int
+	particlePos []int
+
+	// Detail view
+	detailScroll int
+	detailTab    int // 0: info, 1: examples, 2: related
+
+	// Time
+	startTime time.Time
 
 	// Animation
 	frame int
@@ -159,112 +259,548 @@ func initData() []Category {
 		{
 			ID: "nav", Name: "Navigation", Icon: "🚀", Gradient: "neon",
 			Commands: []Command{
-				{Cmd: "des", Desc: "Navigate to Desktop folder", Tags: []string{"desktop", "folder"}},
-				{Cmd: "dl", Desc: "Navigate to Downloads folder", Tags: []string{"download", "folder"}},
-				{Cmd: "docs", Desc: "Navigate to Documents folder", Tags: []string{"documents", "folder"}},
-				{Cmd: "cdd", Desc: "Smart CD with history & fuzzy matching", Tags: []string{"cd", "smart"}},
-				{Cmd: "bm", Desc: "Interactive Bookmark Manager", Hot: "Ctrl+B", Tags: []string{"bookmark"}},
-				{Cmd: "j", Desc: "Jump to saved bookmark", Tags: []string{"jump", "bookmark"}},
-				{Cmd: "..", Desc: "Go up one directory level", Tags: []string{"parent", "up"}},
-				{Cmd: "...", Desc: "Go up two directory levels", Tags: []string{"parent", "up"}},
-				{Cmd: "-", Desc: "Return to previous directory", Tags: []string{"back", "previous"}},
-				{Cmd: "home", Desc: "Navigate to home directory", Tags: []string{"home", "user"}},
-				{Cmd: "root", Desc: "Navigate to drive root", Tags: []string{"root", "drive"}},
+				{
+					Cmd: "des", Desc: "Navigate to Desktop folder",
+					Tags: []string{"desktop", "folder"},
+					Example: "des",
+					Usage: "Quickly jump to your Desktop directory",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "dl", Desc: "Navigate to Downloads folder",
+					Tags: []string{"download", "folder"},
+					Example: "dl && ls",
+					Usage: "Access Downloads and list contents",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "docs", Desc: "Navigate to Documents folder",
+					Tags: []string{"documents", "folder"},
+					Example: "docs",
+					Usage: "Jump to Documents directory",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "cdd", Desc: "Smart CD with history & fuzzy matching",
+					Tags: []string{"cd", "smart", "fuzzy"},
+					Example: "cdd proj",
+					Usage: "cdd <partial-name> - Uses fuzzy matching",
+					Since: "v1.2",
+				},
+				{
+					Cmd: "bm", Desc: "Interactive Bookmark Manager",
+					Hot: "Ctrl+B", Tags: []string{"bookmark", "save"},
+					Example: "bm add work ~/Projects",
+					Usage: "bm [add|del|list] <name> [path]",
+					Since: "v1.1",
+				},
+				{
+					Cmd: "j", Desc: "Jump to saved bookmark",
+					Tags: []string{"jump", "bookmark"},
+					Example: "j work",
+					Usage: "j <bookmark-name>",
+					Since: "v1.1",
+				},
+				{
+					Cmd: "..", Desc: "Go up one directory level",
+					Tags: []string{"parent", "up"},
+					Example: "..",
+					Usage: "Navigate to parent directory",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "...", Desc: "Go up two directory levels",
+					Tags: []string{"parent", "up"},
+					Example: "...",
+					Usage: "Navigate up 2 levels",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "-", Desc: "Return to previous directory",
+					Tags: []string{"back", "previous", "history"},
+					Example: "-",
+					Usage: "Toggle between current and last dir",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "home", Desc: "Navigate to home directory",
+					Tags: []string{"home", "user"},
+					Example: "home",
+					Usage: "Go to $HOME (~)",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "root", Desc: "Navigate to drive root",
+					Tags: []string{"root", "drive"},
+					Example: "root",
+					Usage: "Go to C:\\ or /",
+					Since: "v1.0",
+				},
 			},
 		},
 		{
 			ID: "files", Name: "Files", Icon: "📁", Gradient: "matrix",
 			Commands: []Command{
-				{Cmd: "mkfile", Desc: "Create file with recursive directory creation", Tags: []string{"create", "file"}},
-				{Cmd: "touch", Desc: "Create empty file or update timestamp", Tags: []string{"create", "touch"}},
-				{Cmd: "nano", Desc: "Open file in smart editor", Tags: []string{"edit", "editor"}},
-				{Cmd: "fastcopy", Desc: "Multi-threaded file copy", Tags: []string{"copy", "fast"}},
-				{Cmd: "extract", Desc: "Extract any archive format", Tags: []string{"unzip", "extract"}},
-				{Cmd: "compress", Desc: "Compress files to ZIP", Tags: []string{"zip", "compress"}},
-				{Cmd: "trash", Desc: "Move files to Recycle Bin", Tags: []string{"delete", "recycle"}},
-				{Cmd: "open", Desc: "Open file or folder in Explorer", Tags: []string{"explorer", "open"}},
-				{Cmd: "tree2", Desc: "Enhanced directory tree view", Tags: []string{"tree", "list"}},
+				{
+					Cmd: "mkfile", Desc: "Create file with recursive directory creation",
+					Tags: []string{"create", "file", "mkdir"},
+					Example: "mkfile path/to/file.txt",
+					Usage: "mkfile <path> - Creates parent dirs if needed",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "touch", Desc: "Create empty file or update timestamp",
+					Tags: []string{"create", "touch", "timestamp"},
+					Example: "touch newfile.txt",
+					Usage: "touch <filename>",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "nano", Desc: "Open file in smart editor",
+					Tags: []string{"edit", "editor", "vim"},
+					Example: "nano config.json",
+					Usage: "nano <file> - Auto-detects best editor",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "fastcopy", Desc: "Multi-threaded file copy",
+					Tags: []string{"copy", "fast", "parallel"},
+					Example: "fastcopy src/ dest/",
+					Usage: "fastcopy <source> <dest> [-t threads]",
+					Since: "v1.3",
+				},
+				{
+					Cmd: "extract", Desc: "Extract any archive format",
+					Tags: []string{"unzip", "extract", "archive", "7z", "tar"},
+					Example: "extract archive.zip",
+					Usage: "extract <file> [dest] - Supports zip/7z/tar/gz",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "compress", Desc: "Compress files to ZIP",
+					Tags: []string{"zip", "compress", "archive"},
+					Example: "compress folder/ output.zip",
+					Usage: "compress <path> [output.zip]",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "trash", Desc: "Move files to Recycle Bin",
+					Tags: []string{"delete", "recycle", "safe"},
+					Example: "trash oldfile.txt",
+					Usage: "trash <files...> - Safe delete",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "open", Desc: "Open file or folder in Explorer",
+					Tags: []string{"explorer", "open", "gui"},
+					Example: "open .",
+					Usage: "open [path] - Opens in default app",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "tree2", Desc: "Enhanced directory tree view",
+					Tags: []string{"tree", "list", "visual"},
+					Example: "tree2 -d 3",
+					Usage: "tree2 [path] [-d depth] [-a all]",
+					Since: "v1.1",
+				},
 			},
 		},
 		{
 			ID: "system", Name: "System", Icon: "💻", Gradient: "ocean",
 			Commands: []Command{
-				{Cmd: "sysinfo", Desc: "Display complete system information", Tags: []string{"info", "system"}},
-				{Cmd: "top", Desc: "Interactive process manager", Tags: []string{"process", "monitor"}},
-				{Cmd: "ports", Desc: "List all listening network ports", Tags: []string{"network", "ports"}},
-				{Cmd: "killport", Desc: "Kill process using specific port", Tags: []string{"kill", "port"}},
-				{Cmd: "myip", Desc: "Show public and local IP addresses", Tags: []string{"ip", "network"}},
-				{Cmd: "speedtest", Desc: "Test internet connection speed", Tags: []string{"speed", "network"}},
-				{Cmd: "battery", Desc: "Display battery status and health", Tags: []string{"battery", "power"}},
-				{Cmd: "cleantemp", Desc: "Clean temporary files and cache", Tags: []string{"clean", "temp"}},
-				{Cmd: "up", Desc: "Check if a website is online", Tags: []string{"ping", "check"}},
+				{
+					Cmd: "sysinfo", Desc: "Display complete system information",
+					Tags: []string{"info", "system", "hardware"},
+					Example: "sysinfo",
+					Usage: "Shows CPU, RAM, Disk, OS details",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "top", Desc: "Interactive process manager",
+					Tags: []string{"process", "monitor", "htop"},
+					Example: "top",
+					Usage: "Real-time process monitoring",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "ports", Desc: "List all listening network ports",
+					Tags: []string{"network", "ports", "netstat"},
+					Example: "ports",
+					Usage: "Shows all open ports with PIDs",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "killport", Desc: "Kill process using specific port",
+					Tags: []string{"kill", "port", "network"},
+					Example: "killport 3000",
+					Usage: "killport <port-number>",
+					Since: "v1.1",
+					Danger: true,
+				},
+				{
+					Cmd: "myip", Desc: "Show public and local IP addresses",
+					Tags: []string{"ip", "network", "wan", "lan"},
+					Example: "myip",
+					Usage: "Displays all network interfaces",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "speedtest", Desc: "Test internet connection speed",
+					Tags: []string{"speed", "network", "bandwidth"},
+					Example: "speedtest",
+					Usage: "Measures download/upload speed",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "battery", Desc: "Display battery status and health",
+					Tags: []string{"battery", "power", "laptop"},
+					Example: "battery",
+					Usage: "Shows charge level, health, cycles",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "cleantemp", Desc: "Clean temporary files and cache",
+					Tags: []string{"clean", "temp", "cache"},
+					Example: "cleantemp",
+					Usage: "Removes temp files safely",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "up", Desc: "Check if a website is online",
+					Tags: []string{"ping", "check", "status"},
+					Example: "up google.com",
+					Usage: "up <domain> - HTTP health check",
+					Since: "v1.0",
+				},
 			},
 		},
 		{
 			ID: "dev", Name: "Dev Tools", Icon: "🛠️", Gradient: "sunset",
 			Commands: []Command{
-				{Cmd: "install", Desc: "Install packages via Winget", Tags: []string{"install", "package"}},
-				{Cmd: "calc", Desc: "Quick mathematical calculator", Tags: []string{"math", "calculate"}},
-				{Cmd: "json", Desc: "Pretty print and validate JSON", Tags: []string{"json", "format"}},
-				{Cmd: "passgen", Desc: "Generate secure random passwords", Tags: []string{"password", "security"}},
-				{Cmd: "timer", Desc: "Countdown timer with notification", Tags: []string{"timer", "countdown"}},
-				{Cmd: "todo", Desc: "Simple task manager", Tags: []string{"todo", "tasks"}},
-				{Cmd: "short", Desc: "Shorten URLs using is.gd", Tags: []string{"url", "shorten"}},
-				{Cmd: "cheat", Desc: "Display command cheat sheets", Tags: []string{"help", "cheat"}},
-				{Cmd: "web", Desc: "Quick web search from terminal", Tags: []string{"search", "web"}},
+				{
+					Cmd: "install", Desc: "Install packages via Winget",
+					Tags: []string{"install", "package", "winget"},
+					Example: "install vscode",
+					Usage: "install <package-name>",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "calc", Desc: "Quick mathematical calculator",
+					Tags: []string{"math", "calculate", "expression"},
+					Example: "calc 2+2*3",
+					Usage: "calc <expression>",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "json", Desc: "Pretty print and validate JSON",
+					Tags: []string{"json", "format", "validate"},
+					Example: "json file.json",
+					Usage: "json <file> or echo '{...}' | json",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "passgen", Desc: "Generate secure random passwords",
+					Tags: []string{"password", "security", "random"},
+					Example: "passgen 16",
+					Usage: "passgen [length] [-s symbols]",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "timer", Desc: "Countdown timer with notification",
+					Tags: []string{"timer", "countdown", "alarm"},
+					Example: "timer 5m",
+					Usage: "timer <duration> - e.g., 1h30m, 45s",
+					Since: "v1.1",
+				},
+				{
+					Cmd: "todo", Desc: "Simple task manager",
+					Tags: []string{"todo", "tasks", "list"},
+					Example: "todo add 'Fix bug'",
+					Usage: "todo [add|done|list|clear] <task>",
+					Since: "v1.2",
+				},
+				{
+					Cmd: "short", Desc: "Shorten URLs using is.gd",
+					Tags: []string{"url", "shorten", "link"},
+					Example: "short https://example.com",
+					Usage: "short <url>",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "cheat", Desc: "Display command cheat sheets",
+					Tags: []string{"help", "cheat", "reference"},
+					Example: "cheat git",
+					Usage: "cheat <topic>",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "web", Desc: "Quick web search from terminal",
+					Tags: []string{"search", "web", "google"},
+					Example: "web golang tutorial",
+					Usage: "web <query>",
+					Since: "v1.0",
+				},
 			},
 		},
 		{
 			ID: "admin", Name: "Admin", Icon: "🔐", Gradient: "fire",
 			Commands: []Command{
-				{Cmd: "sudo", Desc: "Run command with admin privileges", Tags: []string{"admin", "elevate"}},
-				{Cmd: "god", Desc: "Enter SYSTEM level God Mode", Tags: []string{"system", "god"}},
-				{Cmd: "ti", Desc: "Get TrustedInstaller privileges", Tags: []string{"trusted", "installer"}},
-				{Cmd: "drop", Desc: "Drop to normal user privileges", Tags: []string{"drop", "user"}},
-				{Cmd: "def", Desc: "Toggle Windows Defender on/off", Tags: []string{"defender", "antivirus"}},
-				{Cmd: "avkill", Desc: "Terminate antivirus processes", Tags: []string{"av", "kill"}},
-				{Cmd: "nuke", Desc: "Force terminate any process", Tags: []string{"kill", "force"}},
-				{Cmd: "ghost", Desc: "Clear all system logs and traces", Tags: []string{"logs", "clean"}},
-				{Cmd: "powerup", Desc: "Enable all token privileges", Tags: []string{"privilege", "token"}},
+				{
+					Cmd: "sudo", Desc: "Run command with admin privileges",
+					Tags: []string{"admin", "elevate", "uac"},
+					Example: "sudo netstat -ab",
+					Usage: "sudo <command>",
+					Since: "v1.0",
+					Danger: true,
+				},
+				{
+					Cmd: "god", Desc: "Enter SYSTEM level God Mode",
+					Tags: []string{"system", "god", "nt authority"},
+					Example: "god",
+					Usage: "Elevates to NT AUTHORITY\\SYSTEM",
+					Since: "v1.0",
+					Danger: true,
+				},
+				{
+					Cmd: "ti", Desc: "Get TrustedInstaller privileges",
+					Tags: []string{"trusted", "installer", "highest"},
+					Example: "ti",
+					Usage: "Ultimate Windows privileges",
+					Since: "v1.0",
+					Danger: true,
+				},
+				{
+					Cmd: "drop", Desc: "Drop to normal user privileges",
+					Tags: []string{"drop", "user", "deescalate"},
+					Example: "drop",
+					Usage: "Returns to normal user context",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "def", Desc: "Toggle Windows Defender on/off",
+					Tags: []string{"defender", "antivirus", "toggle"},
+					Example: "def off",
+					Usage: "def [on|off]",
+					Since: "v1.1",
+					Danger: true,
+				},
+				{
+					Cmd: "avkill", Desc: "Terminate antivirus processes",
+					Tags: []string{"av", "kill", "security"},
+					Example: "avkill",
+					Usage: "Forces AV shutdown",
+					Since: "v1.2",
+					Danger: true,
+				},
+				{
+					Cmd: "nuke", Desc: "Force terminate any process",
+					Tags: []string{"kill", "force", "process"},
+					Example: "nuke notepad",
+					Usage: "nuke <process-name|pid>",
+					Since: "v1.0",
+					Danger: true,
+				},
+				{
+					Cmd: "ghost", Desc: "Clear all system logs and traces",
+					Tags: []string{"logs", "clean", "forensics"},
+					Example: "ghost",
+					Usage: "Clears event logs, temp, history",
+					Since: "v1.2",
+					Danger: true,
+				},
+				{
+					Cmd: "powerup", Desc: "Enable all token privileges",
+					Tags: []string{"privilege", "token", "seDebug"},
+					Example: "powerup",
+					Usage: "Enables SeDebugPrivilege, etc.",
+					Since: "v1.0",
+					Danger: true,
+				},
 			},
 		},
 		{
 			ID: "windows", Name: "Windows", Icon: "🪟", Gradient: "cyber",
 			Commands: []Command{
-				{Cmd: "star", Desc: "Pin window to prevent closing", Tags: []string{"pin", "lock"}},
-				{Cmd: "unstar", Desc: "Unpin window", Tags: []string{"unpin", "unlock"}},
-				{Cmd: "wm", Desc: "Window manager for tiling", Tags: []string{"tile", "window"}},
-				{Cmd: "hyp", Desc: "Check Hypervisor status", Tags: []string{"hypervisor", "vm"}},
-				{Cmd: "uefi", Desc: "Display UEFI/BIOS information", Tags: []string{"uefi", "bios"}},
-				{Cmd: "vmx", Desc: "Inject commands into VM", Tags: []string{"vm", "inject"}},
-				{Cmd: "cmd", Desc: "Command palette launcher", Hot: "Ctrl+P", Tags: []string{"palette", "launcher"}},
+				{
+					Cmd: "star", Desc: "Pin window to prevent closing",
+					Tags: []string{"pin", "lock", "topmost"},
+					Example: "star notepad",
+					Usage: "star <window-title>",
+					Since: "v1.1",
+				},
+				{
+					Cmd: "unstar", Desc: "Unpin window",
+					Tags: []string{"unpin", "unlock"},
+					Example: "unstar notepad",
+					Usage: "unstar <window-title>",
+					Since: "v1.1",
+				},
+				{
+					Cmd: "wm", Desc: "Window manager for tiling",
+					Tags: []string{"tile", "window", "layout"},
+					Example: "wm tile",
+					Usage: "wm [tile|cascade|stack]",
+					Since: "v1.2",
+				},
+				{
+					Cmd: "hyp", Desc: "Check Hypervisor status",
+					Tags: []string{"hypervisor", "vm", "virtualization"},
+					Example: "hyp",
+					Usage: "Checks Hyper-V, VMware, VBox",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "uefi", Desc: "Display UEFI/BIOS information",
+					Tags: []string{"uefi", "bios", "firmware"},
+					Example: "uefi",
+					Usage: "Shows firmware details",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "vmx", Desc: "Inject commands into VM",
+					Tags: []string{"vm", "inject", "guest"},
+					Example: "vmx run 'dir'",
+					Usage: "vmx [run|file] <cmd|path>",
+					Since: "v1.3",
+					Danger: true,
+				},
+				{
+					Cmd: "cmd", Desc: "Command palette launcher",
+					Hot: "Ctrl+P", Tags: []string{"palette", "launcher", "quick"},
+					Example: "cmd",
+					Usage: "Opens fuzzy command finder",
+					Since: "v1.0",
+				},
 			},
 		},
 		{
 			ID: "search", Name: "Search", Icon: "🔍", Gradient: "royal",
 			Commands: []Command{
-				{Cmd: "ff", Desc: "Find files by name with fuzzy match", Tags: []string{"find", "fuzzy"}},
-				{Cmd: "ftext", Desc: "Search for text inside files", Tags: []string{"grep", "content"}},
-				{Cmd: "dup", Desc: "Find duplicate files", Tags: []string{"duplicate", "find"}},
-				{Cmd: "recent", Desc: "List recently modified files", Tags: []string{"recent", "modified"}},
-				{Cmd: "sizesort", Desc: "Analyze folder sizes", Tags: []string{"size", "analyze"}},
-				{Cmd: "count", Desc: "Count files, folders, and lines", Tags: []string{"count", "stats"}},
-				{Cmd: "hh", Desc: "Search command history", Tags: []string{"history", "search"}},
+				{
+					Cmd: "ff", Desc: "Find files by name with fuzzy match",
+					Tags: []string{"find", "fuzzy", "files"},
+					Example: "ff *.go",
+					Usage: "ff <pattern> [-d dir]",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "ftext", Desc: "Search for text inside files",
+					Tags: []string{"grep", "content", "search"},
+					Example: "ftext 'TODO' *.go",
+					Usage: "ftext <text> [files]",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "dup", Desc: "Find duplicate files",
+					Tags: []string{"duplicate", "find", "hash"},
+					Example: "dup ~/Downloads",
+					Usage: "dup [path] - Uses SHA256",
+					Since: "v1.1",
+				},
+				{
+					Cmd: "recent", Desc: "List recently modified files",
+					Tags: []string{"recent", "modified", "new"},
+					Example: "recent -n 20",
+					Usage: "recent [-n count] [path]",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "sizesort", Desc: "Analyze folder sizes",
+					Tags: []string{"size", "analyze", "disk"},
+					Example: "sizesort",
+					Usage: "sizesort [path] - Shows largest items",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "count", Desc: "Count files, folders, and lines",
+					Tags: []string{"count", "stats", "lines"},
+					Example: "count *.go",
+					Usage: "count [pattern] - File statistics",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "hh", Desc: "Search command history",
+					Tags: []string{"history", "search", "past"},
+					Example: "hh git",
+					Usage: "hh [query] - Fuzzy history search",
+					Since: "v1.0",
+				},
 			},
 		},
 		{
 			ID: "git", Name: "Git", Icon: "", Gradient: "emerald",
 			Commands: []Command{
-				{Cmd: "gs", Desc: "Show git status with enhanced view", Tags: []string{"status"}},
-				{Cmd: "ga", Desc: "Stage files for commit", Tags: []string{"add", "stage"}},
-				{Cmd: "gc", Desc: "Commit staged changes", Tags: []string{"commit"}},
-				{Cmd: "gp", Desc: "Push commits to remote", Tags: []string{"push", "remote"}},
-				{Cmd: "gl", Desc: "Pull changes from remote", Tags: []string{"pull", "remote"}},
-				{Cmd: "glog", Desc: "Show pretty git log graph", Tags: []string{"log", "history"}},
-				{Cmd: "gd", Desc: "Show file differences", Tags: []string{"diff", "changes"}},
-				{Cmd: "gb", Desc: "List and manage branches", Tags: []string{"branch"}},
-				{Cmd: "gco", Desc: "Switch branches", Tags: []string{"checkout", "switch"}},
-				{Cmd: "gst", Desc: "Stash current changes", Tags: []string{"stash", "save"}},
+				{
+					Cmd: "gs", Desc: "Show git status with enhanced view",
+					Tags: []string{"status", "changes"},
+					Example: "gs",
+					Usage: "Enhanced git status",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "ga", Desc: "Stage files for commit",
+					Tags: []string{"add", "stage"},
+					Example: "ga .",
+					Usage: "ga [files] - git add",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "gc", Desc: "Commit staged changes",
+					Tags: []string{"commit", "save"},
+					Example: "gc 'feat: new feature'",
+					Usage: "gc '<message>'",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "gp", Desc: "Push commits to remote",
+					Tags: []string{"push", "remote", "upload"},
+					Example: "gp",
+					Usage: "gp [remote] [branch]",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "gl", Desc: "Pull changes from remote",
+					Tags: []string{"pull", "remote", "download"},
+					Example: "gl",
+					Usage: "gl [remote] [branch]",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "glog", Desc: "Show pretty git log graph",
+					Tags: []string{"log", "history", "graph"},
+					Example: "glog -n 10",
+					Usage: "glog [-n count]",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "gd", Desc: "Show file differences",
+					Tags: []string{"diff", "changes", "compare"},
+					Example: "gd HEAD~1",
+					Usage: "gd [ref]",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "gb", Desc: "List and manage branches",
+					Tags: []string{"branch", "list"},
+					Example: "gb -a",
+					Usage: "gb [-a all] [-d delete]",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "gco", Desc: "Switch branches",
+					Tags: []string{"checkout", "switch", "branch"},
+					Example: "gco main",
+					Usage: "gco <branch> [-b new]",
+					Since: "v1.0",
+				},
+				{
+					Cmd: "gst", Desc: "Stash current changes",
+					Tags: []string{"stash", "save", "temporary"},
+					Example: "gst",
+					Usage: "gst [pop|list|drop]",
+					Since: "v1.0",
+				},
 			},
 		},
 	}
@@ -276,7 +812,7 @@ func initData() []Category {
 
 func newModel() Model {
 	ti := textinput.New()
-	ti.Placeholder = "Type to search commands..."
+	ti.Placeholder = "✨ Type to search commands..."
 	ti.CharLimit = 64
 	ti.Width = 40
 	ti.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(colors.primary))
@@ -290,7 +826,15 @@ func newModel() Model {
 		hoverCat:    -1,
 		hoverItem:   -1,
 		hitBoxes:    make([]HitBox, 0, 64),
+		usageStats:  make(map[string]int),
+		startTime:   time.Now(),
 	}
+
+	// Calculate total commands
+	for _, cat := range m.categories {
+		m.totalCmds += len(cat.Commands)
+	}
+
 	m.updateFiltered()
 	return m
 }

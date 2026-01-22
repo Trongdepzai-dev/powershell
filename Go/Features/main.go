@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"time"
@@ -1030,6 +1031,9 @@ func getGradient(name string) []string {
 	if g, ok := gradients[name]; ok {
 		return g
 	}
+	if g, ok := enhancedGradients[name]; ok {
+		return g
+	}
 	return gradients["cyber"]
 }
 
@@ -1097,6 +1101,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.copyTimer == 0 {
 				m.copied = false
 			}
+		}
+		// Toast timer
+		if m.toastTimer > 0 {
+			m.toastTimer--
+			if m.toastTimer == 0 {
+				m.toast = ""
+				m.toastType = ""
+			}
+		}
+		// Pulse animation
+		m.pulsePhase += 0.1
+		if m.pulsePhase > 2*math.Pi {
+			m.pulsePhase = 0
 		}
 		return m, m.tickCmd()
 
@@ -1349,10 +1366,142 @@ func (m *Model) adjustScroll() {
 func (m *Model) doCopy() {
 	if m.itemIndex < len(m.filtered) {
 		cmd := m.filtered[m.itemIndex].Cmd
-		clipboard.WriteAll(cmd)
-		m.copied = true
-		m.copyTimer = 25
+		err := clipboard.WriteAll(cmd)
+
+		if err == nil {
+			m.copied = true
+			m.copyTimer = 25
+			m.toast = fmt.Sprintf("Copied: %s", cmd)
+			m.toastType = "success"
+			m.toastTimer = 30
+
+			// Track usage
+			m.usageStats[cmd]++
+		} else {
+			m.toast = "Failed to copy!"
+			m.toastType = "error"
+			m.toastTimer = 30
+		}
 	}
+}
+
+// ══════════════════════════════════════════════════════════════════
+//                    ENHANCED STYLE HELPERS
+// ══════════════════════════════════════════════════════════════════
+
+// waveText creates a text animation with waving colors
+func waveText(s string, frame int, grad string) string {
+	cols := getGradient(grad)
+	runes := []rune(s)
+	var b strings.Builder
+
+	for i, r := range runes {
+		phase := float64(frame+i) / 10.0
+		intensity := (1.0 + math.Sin(phase)) / 2.0
+		idx := int(intensity * float64(len(cols)-1))
+		c := cols[idx]
+		style := lipgloss.NewStyle().Foreground(lipgloss.Color(c))
+		b.WriteString(style.Render(string(r)))
+	}
+	return b.String()
+}
+
+// pulseStyle calculates a pulsing color based on a frame counter
+func pulseStyle(baseColor string, frame int) lipgloss.Color {
+	intensity := 0.7 + 0.3*math.Sin(float64(frame)/10.0)
+	if intensity > 0.85 {
+		return lipgloss.Color(baseColor)
+	}
+	return lipgloss.Color(colors.textDim)
+}
+
+// sparkleBorder renders a border with sparkling effects
+func sparkleBorder(width int, frame int, grad string) string {
+	cols := getGradient(grad)
+	var b strings.Builder
+
+	for i := 0; i < width; i++ {
+		phase := (frame + i) % len(sparkles)
+		t := float64(i) / float64(width)
+		c := lerpColor(cols, t)
+
+		char := "─"
+		if (frame+i)%12 == 0 {
+			char = sparkles[phase%len(sparkles)]
+		}
+
+		style := lipgloss.NewStyle().Foreground(lipgloss.Color(c))
+		b.WriteString(style.Render(char))
+	}
+	return b.String()
+}
+
+// animatedBar renders a smooth, animated progress bar
+func animatedBar(current, total, width, frame int) string {
+	if total == 0 {
+		return strings.Repeat("░", width)
+	}
+
+	filled := current * width / total
+	var b strings.Builder
+
+	for i := 0; i < width; i++ {
+		if i < filled {
+			t := float64(i) / float64(width)
+			c := lerpColor(getGradient("neon"), t)
+			style := lipgloss.NewStyle().Foreground(lipgloss.Color(c))
+			b.WriteString(style.Render("█"))
+		} else if i == filled {
+			char := waveChars[(frame+i)%len(waveChars)]
+			style := lipgloss.NewStyle().Foreground(lipgloss.Color(colors.primary))
+			b.WriteString(style.Render(char))
+		} else {
+			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(colors.border)).Render("░"))
+		}
+	}
+	return b.String()
+}
+
+// glowIcon renders an icon with an optional glowing pulse effect
+func glowIcon(icon string, active bool, frame int, color string) string {
+	if !active {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(colors.textMuted)).Render(icon)
+	}
+
+	phase := frame % len(pulse)
+	glow := pulse[phase]
+
+	iconStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Bold(true)
+	glowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colors.textMuted))
+
+	return glowStyle.Render(glow) + iconStyle.Render(icon) + glowStyle.Render(glow)
+}
+
+// tooltipBox renders a styled box for tooltips
+func tooltipBox(text string, x, y int) string {
+	style := lipgloss.NewStyle().
+		Background(lipgloss.Color(colors.surfaceHL)).
+		Foreground(lipgloss.Color(colors.text)).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(colors.borderHL)).
+		Padding(0, 1)
+
+	return style.Render(text)
+}
+
+// formatUptime formats a duration into a human-readable string
+func formatUptime(d time.Duration) string {
+	h := int(d.Hours())
+	m := int(d.Minutes()) % 60
+	s := int(d.Seconds()) % 60
+
+	if h > 0 {
+		return fmt.Sprintf("%dh %dm %ds", h, m, s)
+	}
+	if m > 0 {
+		return fmt.Sprintf("%dm %ds", m, s)
+	}
+	return fmt.Sprintf("%ds", s)
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1384,121 +1533,173 @@ func (m Model) View() string {
 }
 
 func (m Model) viewHeader() string {
-	// Animated logo
-	logo := `
- ██╗   ██╗██╗  ████████╗██╗███╗   ███╗ █████╗ ████████╗███████╗
- ██║   ██║██║  ╚══██╔══╝██║████╗ ████║██╔══██╗╚══██╔══╝██╔════╝
- ██║   ██║██║     ██║   ██║██╔████╔██║███████║   ██║   █████╗  
- ██║   ██║██║     ██║   ██║██║╚██╔╝██║██╔══██║   ██║   ██╔══╝  
- ╚██████╔╝███████╗██║   ██║██║ ╚═╝ ██║██║  ██║   ██║   ███████╗
-  ╚═════╝ ╚══════╝╚═╝   ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝`
+	// ULTIMATE ANIMATED LOGO with many frames
+	logoFrames := []string{
+		`
+    ╔═══════════════════════════════════════════════════════════════════╗
+    ║  ██╗   ██╗██╗  ████████╗██╗███╗   ███╗ █████╗ ████████╗███████╗  ║
+    ║  ██║   ██║██║  ╚══██╔══╝██║████╗ ████║██╔══██╗╚══██╔══╝██╔════╝  ║
+    ║  ██║   ██║██║     ██║   ██║██╔████╔██║███████║   ██║   █████╗    ║
+    ║  ██║   ██║██║     ██║   ██║██║╚██╔╝██║██╔══██║   ██║   ██╔══╝    ║
+    ║  ╚██████╔╝███████╗██║   ██║██║ ╚═╝ ██║██║  ██║   ██║   ███████╗  ║
+    ║   ╚═════╝ ╚══════╝╚═╝   ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝  ║
+    ╚═══════════════════════════════════════════════════════════════════╝`,
+	}
 
-	// Cycle gradient
-	gradList := []string{"neon", "cyber", "sunset", "ocean", "fire", "matrix"}
-	grad := gradList[(m.frame/40)%len(gradList)]
+	// Rotating gradient for logo
+	gradList := []string{"rainbow", "neon", "cosmic", "aurora", "synthwave", "plasma"}
+	grad := gradList[(m.frame/50)%len(gradList)]
 
+	logo := logoFrames[0]
 	lines := strings.Split(logo, "\n")
 	var header strings.Builder
 
+	// Render logo with gradient
 	for _, line := range lines {
-		styled := gradientStr(line, grad)
-		header.WriteString(lipgloss.PlaceHorizontal(m.width, lipgloss.Center, styled) + "\n")
+		if strings.TrimSpace(line) != "" {
+			styled := waveText(line, m.frame, grad)
+			header.WriteString(lipgloss.PlaceHorizontal(m.width, lipgloss.Center, styled) + "\n")
+		}
 	}
 
-	// Subtitle with animation
-	spin := dots[(m.frame/2)%len(dots)]
-	sub := fmt.Sprintf("%s PowerShell Feature Matrix %s", spin, spin)
-	header.WriteString(lipgloss.PlaceHorizontal(m.width, lipgloss.Center, gradientStr(sub, "sunset")))
+	// Animated subtitle line
+	spinner := spinners[m.frame%len(spinners)]
+	dot1 := dots[(m.frame)%len(dots)]
+	dot2 := dots[(m.frame+3)%len(dots)]
+	radar1 := radar[m.frame%len(radar)]
 
-	return header.String() + "\n"
+	subtitle := fmt.Sprintf("%s %s PowerShell Feature Matrix %s %s",
+		radar1, dot1, dot2, spinner)
+
+	header.WriteString(lipgloss.PlaceHorizontal(m.width, lipgloss.Center,
+		gradientStr(subtitle, "sunset")) + "\n")
+
+	// Stats bar
+	statsStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(colors.textDim)).
+		Background(lipgloss.Color(colors.bgDark))
+
+	uptime := formatUptime(time.Since(m.startTime))
+	stats := fmt.Sprintf(" 📦 %d Commands │ 📂 %d Categories │ ⏱️ %s ",
+		m.totalCmds, len(m.categories), uptime)
+
+	// Animated bar
+	barWidth := 20
+	animBar := animatedBar(m.catIndex+1, len(m.categories), barWidth, m.frame)
+
+	statsLine := fmt.Sprintf("%s │ %s", stats, animBar)
+	header.WriteString(lipgloss.PlaceHorizontal(m.width, lipgloss.Center,
+		statsStyle.Render(statsLine)) + "\n")
+
+	return header.String()
 }
 
 func (m *Model) viewTabs() string {
 	var tabs strings.Builder
-	tabs.WriteString("\n")
 
-	// pad := m.layout.Padding // Unused
+	// Decorative top border
+	topBorder := sparkleBorder(m.width-4, m.frame, "neon")
+	tabs.WriteString(lipgloss.PlaceHorizontal(m.width, lipgloss.Center, topBorder) + "\n")
+
 	tabW := m.layout.TabW
 	perRow := m.layout.TabsPerRow
 
 	for i, cat := range m.categories {
 		col := i % perRow
-		// row := i / perRow // Unused now
-		// x := pad + col*tabW // Unused
-		// y := m.layout.HeaderH + row // Unused
-
-		// Hitboxes calculated in recalcHitBoxes
 
 		isSelected := i == m.catIndex
 		isHovered := i == m.hoverCat
 		grad := getGradient(cat.Gradient)
 
+		// Count commands in category
+		cmdCount := len(cat.Commands)
+
 		var style lipgloss.Style
+		var indicator string
+
 		if isSelected {
+			// Active tab with glow effect
+			phase := m.frame % len(pulse)
+			glowChar := pulse[phase]
+
 			style = lipgloss.NewStyle().
 				Background(lipgloss.Color(grad[0])).
 				Foreground(lipgloss.Color("#000000")).
 				Bold(true).
 				Padding(0, 1)
+			indicator = fmt.Sprintf("%s▸", glowChar)
 		} else if isHovered {
 			style = lipgloss.NewStyle().
 				Background(lipgloss.Color(colors.surfaceHL)).
 				Foreground(lipgloss.Color(grad[0])).
 				Padding(0, 1)
+			indicator = " ›"
 		} else {
 			style = lipgloss.NewStyle().
 				Foreground(lipgloss.Color(colors.textDim)).
 				Padding(0, 1)
+			indicator = "  "
 		}
 
-		indicator := " "
-		if isSelected {
-			indicator = "▸"
-		} else if isHovered {
-			indicator = "›"
-		}
-
+		// Format: indicator + numKey + icon + name + count
 		numKey := ""
 		if i < 9 {
 			numKey = fmt.Sprintf("%d:", i+1)
 		}
 
-		content := fmt.Sprintf("%s%s%s %s", indicator, numKey, cat.Icon, cat.Name)
+		countBadge := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(colors.textMuted)).
+			Render(fmt.Sprintf("(%d)", cmdCount))
+
+		content := fmt.Sprintf("%s%s%s %s %s",
+			indicator, numKey, cat.Icon, cat.Name, countBadge)
 
 		// Truncate if needed
-		maxLen := tabW - 4
-		if len(content) > maxLen {
-			content = content[:maxLen-1] + "…"
+		maxLen := tabW - 3
+		displayContent := content
+		if lipgloss.Width(content) > maxLen {
+			displayContent = content[:maxLen-1] + "…"
 		}
 
-		tabs.WriteString(style.Width(tabW - 1).Render(content))
+		tabs.WriteString(style.Width(tabW - 1).Render(displayContent))
 
 		if col == perRow-1 || i == len(m.categories)-1 {
 			tabs.WriteString("\n")
 		}
 	}
 
+	// Bottom border with current category highlight
+	cat := m.categories[m.catIndex]
+	bottomBorder := sparkleBorder(m.width-4, m.frame, cat.Gradient)
+	tabs.WriteString(lipgloss.PlaceHorizontal(m.width, lipgloss.Center, bottomBorder) + "\n")
+
 	return tabs.String()
 }
 
 func (m *Model) viewSearch() string {
-	// y := m.layout.HeaderH + m.layout.TabsH + 1 // Unused
-
-	// Hitboxes calculated in recalcHitBoxes
-
 	isActive := m.searchMode
 	isHovered := m.hoverBtn == "search"
 
+	cat := m.categories[m.catIndex]
+	grad := getGradient(cat.Gradient)
+
 	borderColor := colors.border
 	if isActive {
-		borderColor = colors.primary
+		borderColor = grad[0]
 	} else if isHovered {
-		borderColor = colors.borderHL
+		borderColor = grad[len(grad)-1]
 	}
 
 	bgColor := colors.surface
 	if isActive {
 		bgColor = colors.surfaceHL
+	}
+
+	// Animated search icon
+	searchIcon := "🔍"
+	if isActive {
+		phase := m.frame % len(dots)
+		searchIcon = fmt.Sprintf("🔍%s", dots[phase])
 	}
 
 	style := lipgloss.NewStyle().
@@ -1508,21 +1709,49 @@ func (m *Model) viewSearch() string {
 		Padding(0, 1).
 		Width(m.width - m.layout.Padding*2 - 4)
 
-	icon := "🔍"
 	var content string
+	var rightInfo string
 
 	if isActive {
-		content = fmt.Sprintf(" %s  %s", icon, m.searchInput.View())
+		// Show match count while typing
+		matchCount := len(m.filtered)
+		rightInfo = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(colors.textMuted)).
+			Render(fmt.Sprintf(" %d matches", matchCount))
+
+		content = fmt.Sprintf(" %s  %s%s", searchIcon, m.searchInput.View(), rightInfo)
 	} else if m.searchInput.Value() != "" {
-		content = fmt.Sprintf(" %s  %s (ESC to clear)",
-			icon, gradientStr(m.searchInput.Value(), "cyber"))
+		// Show active filter
+		filterStyle := lipgloss.NewStyle().
+			Background(lipgloss.Color(grad[0])).
+			Foreground(lipgloss.Color("#000000")).
+			Padding(0, 1)
+
+		escHint := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(colors.textMuted)).
+			Render(" (ESC to clear)")
+
+		content = fmt.Sprintf(" %s  %s%s",
+			searchIcon,
+			filterStyle.Render(m.searchInput.Value()),
+			escHint)
 	} else {
-		hint := "Press / to search..."
+		hint := "Press / or click to search..."
 		if isHovered {
-			hint = "Click to search..."
+			hint = "✨ Click to start searching..."
 		}
-		content = fmt.Sprintf(" %s  %s", icon,
-			lipgloss.NewStyle().Foreground(lipgloss.Color(colors.textMuted)).Render(hint))
+
+		// Show keyboard shortcut
+		shortcut := lipgloss.NewStyle().
+			Background(lipgloss.Color(colors.surface)).
+			Foreground(lipgloss.Color(colors.primary)).
+			Padding(0, 1).
+			Render("/")
+
+		content = fmt.Sprintf(" %s  %s %s",
+			searchIcon,
+			lipgloss.NewStyle().Foreground(lipgloss.Color(colors.textMuted)).Render(hint),
+			shortcut)
 	}
 
 	bar := style.Render(content)
@@ -1554,46 +1783,75 @@ func (m *Model) viewList() string {
 
 	var s strings.Builder
 
-	// Header
+	// Enhanced header with animated border
 	title := fmt.Sprintf(" %s %s ", cat.Icon, cat.Name)
+	cmdCount := fmt.Sprintf(" %d cmds ", len(cat.Commands))
+
 	headerStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(grad[0])).
 		Bold(true)
 
-	headerLen := lipgloss.Width(title)
-	padLen := m.layout.ListW - headerLen - 4
+	countStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(colors.textMuted))
+
+	// Calculate padding
+	headerLen := lipgloss.Width(title) + lipgloss.Width(cmdCount)
+	padLen := m.layout.ListW - headerLen - 6
 	if padLen < 0 {
 		padLen = 0
 	}
 
-	s.WriteString(gradientStr("╭─", cat.Gradient))
+	// Animated corner
+	cornerAnim := sparkles[m.frame%len(sparkles)]
+
+	s.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(grad[0])).Render(cornerAnim + "─"))
 	s.WriteString(headerStyle.Render(title))
-	s.WriteString(gradientStr(strings.Repeat("─", padLen)+"╮", cat.Gradient))
+	s.WriteString(gradientStr(strings.Repeat("─", padLen), cat.Gradient))
+	s.WriteString(countStyle.Render(cmdCount))
+	s.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(grad[len(grad)-1])).Render("─" + cornerAnim))
 	s.WriteString("\n")
 
 	// Items
-	// listStartY := m.layout.HeaderH + m.layout.TabsH + m.layout.SearchH + 2 // Unused
 	visible := height - 3
 
 	for i := 0; i < visible; i++ {
 		idx := i + m.scrollY
 
-		// Border color
+		// Gradient border
 		borderT := float64(i) / float64(visible)
 		borderC := lerpColor(grad, borderT)
-		border := lipgloss.NewStyle().Foreground(lipgloss.Color(borderC)).Render("│")
 
-		s.WriteString(border)
+		// Animated border for selected row
+		var borderChar string
+		if idx == m.itemIndex {
+			phase := m.frame % len(waveChars)
+			borderChar = lipgloss.NewStyle().Foreground(lipgloss.Color(grad[0])).Bold(true).Render(waveChars[phase])
+		} else {
+			borderChar = lipgloss.NewStyle().Foreground(lipgloss.Color(borderC)).Render("│")
+		}
+
+		s.WriteString(borderChar)
 
 		if idx < len(m.filtered) {
 			item := m.filtered[idx]
 			isSelected := idx == m.itemIndex
 			isHovered := idx == m.hoverItem
 
-			// Hitboxes calculated in recalcHitBoxes
+			// Get command icon
+			icon := cmdIcons[item.Cmd]
+			if icon == "" {
+				icon = "•"
+			}
+
+			// Danger indicator
+			dangerMark := ""
+			if item.Danger {
+				dangerMark = "⚠"
+			}
 
 			var itemStyle lipgloss.Style
-			indicator := "  "
+			var indicator string
+			var iconStyle lipgloss.Style
 
 			if isSelected {
 				itemStyle = lipgloss.NewStyle().
@@ -1602,54 +1860,68 @@ func (m *Model) viewList() string {
 					Bold(true).
 					Width(m.layout.ListW - 3)
 				indicator = "▶ "
+				iconStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#000000"))
 			} else if isHovered {
 				itemStyle = lipgloss.NewStyle().
 					Background(lipgloss.Color(colors.surfaceHL)).
 					Foreground(lipgloss.Color(grad[len(grad)-1])).
 					Width(m.layout.ListW - 3)
 				indicator = "› "
+				iconStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(grad[0]))
 			} else {
 				itemStyle = lipgloss.NewStyle().
 					Foreground(lipgloss.Color(colors.text)).
 					Width(m.layout.ListW - 3)
+				indicator = "  "
+				iconStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(colors.textDim))
 			}
 
-			// Truncate command
+			// Truncate command name
 			cmdDisplay := item.Cmd
-			maxLen := m.layout.ListW - 8
+			maxLen := m.layout.ListW - 12
 			if len(cmdDisplay) > maxLen {
 				cmdDisplay = cmdDisplay[:maxLen-1] + "…"
 			}
 
-			content := indicator + cmdDisplay
+			content := fmt.Sprintf("%s%s %s%s",
+				indicator,
+				iconStyle.Render(icon),
+				cmdDisplay,
+				lipgloss.NewStyle().Foreground(lipgloss.Color(colors.warning)).Render(dangerMark))
+
 			s.WriteString(itemStyle.Render(content))
 		} else {
-			s.WriteString(strings.Repeat(" ", m.layout.ListW-2))
+			// Empty row with subtle pattern
+			pattern := strings.Repeat("·", (m.layout.ListW-3)/2)
+			s.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(colors.bgLight)).Render(pattern))
+			s.WriteString(strings.Repeat(" ", m.layout.ListW-3-len(pattern)))
 		}
 
-		s.WriteString(border + "\n")
+		s.WriteString(borderChar + "\n")
 	}
 
-	// Scrollbar
-	if len(m.filtered) > visible {
-		scrollbarH := max(1, visible*visible/len(m.filtered))
-		scrollbarPos := m.scrollY * (visible - scrollbarH) / max(1, len(m.filtered)-visible)
-		// Could render scrollbar track here
-		_ = scrollbarH
-		_ = scrollbarPos
-	}
+	// Enhanced footer with stats and progress
+	currentIdx := min(m.itemIndex+1, len(m.filtered))
+	progress := float64(currentIdx) / float64(max(1, len(m.filtered)))
+	progressW := 10
+	filledW := int(progress * float64(progressW))
 
-	// Footer with stats
-	stats := fmt.Sprintf(" %d/%d ", min(m.itemIndex+1, len(m.filtered)), len(m.filtered))
-	statsLen := len(stats)
-	footerPad := m.layout.ListW - statsLen - 4
+	progressBar := lipgloss.NewStyle().Foreground(lipgloss.Color(grad[0])).Render(strings.Repeat("▰", filledW))
+	progressBar += lipgloss.NewStyle().Foreground(lipgloss.Color(colors.border)).Render(strings.Repeat("▱", progressW-filledW))
+
+	stats := fmt.Sprintf(" %d/%d ", currentIdx, len(m.filtered))
+	statsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colors.textDim))
+
+	footerPad := m.layout.ListW - len(stats) - progressW - 6
 	if footerPad < 0 {
 		footerPad = 0
 	}
 
-	s.WriteString(gradientStr("╰"+strings.Repeat("─", footerPad), cat.Gradient))
-	s.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(colors.textDim)).Render(stats))
-	s.WriteString(gradientStr("─╯", cat.Gradient))
+	s.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(grad[len(grad)-1])).Render(cornerAnim + "─"))
+	s.WriteString(progressBar)
+	s.WriteString(gradientStr(strings.Repeat("─", footerPad), cat.Gradient))
+	s.WriteString(statsStyle.Render(stats))
+	s.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(grad[0])).Render("─" + cornerAnim))
 
 	return s.String()
 }
@@ -1662,8 +1934,10 @@ func (m *Model) viewDetail() string {
 
 	var s strings.Builder
 
-	// Header
-	title := " 📖 Details "
+	// Animated header
+	sparkle := sparkles[m.frame%len(sparkles)]
+	title := fmt.Sprintf(" %s Command Details %s ", sparkle, sparkle)
+
 	headerStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(grad[len(grad)-1])).
 		Bold(true)
@@ -1679,110 +1953,198 @@ func (m *Model) viewDetail() string {
 	s.WriteString(gradientStr(strings.Repeat("─", padLen)+"╮", cat.Gradient))
 	s.WriteString("\n")
 
-	// Content
+	// Content lines
 	var lines []string
 
 	if m.itemIndex < len(m.filtered) {
 		item := m.filtered[m.itemIndex]
 
-		// Command
-		lines = append(lines, "")
-		lines = append(lines, lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colors.textDim)).Render("  COMMAND"))
-		lines = append(lines, lipgloss.NewStyle().
-			Foreground(lipgloss.Color(grad[0])).
-			Bold(true).Render("  "+item.Cmd))
-		lines = append(lines, "")
-
-		// Description
-		lines = append(lines, lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colors.textDim)).Render("  DESCRIPTION"))
-
-		// Word wrap description
-		desc := item.Desc
-		maxDescW := width - 6
-		if len(desc) > maxDescW {
-			lines = append(lines, lipgloss.NewStyle().
-				Foreground(lipgloss.Color(colors.text)).Render("  "+desc[:maxDescW]))
-			lines = append(lines, lipgloss.NewStyle().
-				Foreground(lipgloss.Color(colors.text)).Render("  "+desc[maxDescW:]))
-		} else {
-			lines = append(lines, lipgloss.NewStyle().
-				Foreground(lipgloss.Color(colors.text)).Render("  "+desc))
+		// Get icon
+		icon := cmdIcons[item.Cmd]
+		if icon == "" {
+			icon = "📌"
 		}
+
 		lines = append(lines, "")
 
-		// Hotkey
-		if item.Hot != "" {
-			lines = append(lines, lipgloss.NewStyle().
-				Foreground(lipgloss.Color(colors.textDim)).Render("  HOTKEY"))
-			lines = append(lines, "  "+gradientStr(item.Hot, "sunset"))
+		// ═══════════ COMMAND SECTION ═══════════
+		sectionHeader := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(colors.textMuted)).
+			Bold(true)
+
+		lines = append(lines, sectionHeader.Render("  ┌─── COMMAND ───┐"))
+
+		// Command with icon - large display
+		cmdStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(grad[0])).
+			Bold(true)
+
+		lines = append(lines, fmt.Sprintf("  │ %s  %s", icon, cmdStyle.Render(item.Cmd)))
+		lines = append(lines, sectionHeader.Render("  └──────────────────┘"))
+		lines = append(lines, "")
+
+		// ═══════════ DESCRIPTION ═══════════
+		lines = append(lines, sectionHeader.Render("  ┌─── DESCRIPTION ───┐"))
+
+		// Word wrap description nicely
+		desc := item.Desc
+		maxDescW := width - 8
+		descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colors.text))
+
+		words := strings.Fields(desc)
+		currentLine := "  │ "
+		for _, word := range words {
+			if len(currentLine)+len(word)+1 > maxDescW {
+				lines = append(lines, descStyle.Render(currentLine))
+				currentLine = "  │ " + word + " "
+			} else {
+				currentLine += word + " "
+			}
+		}
+		if currentLine != "  │ " {
+			lines = append(lines, descStyle.Render(currentLine))
+		}
+		lines = append(lines, sectionHeader.Render("  └─────────────────────┘"))
+		lines = append(lines, "")
+
+		// ═══════════ USAGE ═══════════
+		if item.Usage != "" {
+			lines = append(lines, sectionHeader.Render("  ┌─── USAGE ───┐"))
+			usageStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color(colors.primary)).
+				Italic(true)
+			lines = append(lines, fmt.Sprintf("  │ %s", usageStyle.Render(item.Usage)))
+			lines = append(lines, sectionHeader.Render("  └──────────────┘"))
 			lines = append(lines, "")
 		}
 
-		// Tags
+		// ═══════════ EXAMPLE ═══════════
+		if item.Example != "" {
+			lines = append(lines, sectionHeader.Render("  ┌─── EXAMPLE ───┐"))
+
+			exampleBox := lipgloss.NewStyle().
+				Background(lipgloss.Color(colors.bgDark)).
+				Foreground(lipgloss.Color(colors.success)).
+				Padding(0, 1)
+
+			lines = append(lines, fmt.Sprintf("  │ $ %s", exampleBox.Render(item.Example)))
+			lines = append(lines, sectionHeader.Render("  └────────────────┘"))
+			lines = append(lines, "")
+		}
+
+		// ═══════════ HOTKEY ═══════════
+		if item.Hot != "" {
+			lines = append(lines, sectionHeader.Render("  ┌─── HOTKEY ───┐"))
+
+			hotkeyStyle := lipgloss.NewStyle().
+				Background(lipgloss.Color(colors.warning)).
+				Foreground(lipgloss.Color("#000000")).
+				Bold(true).
+				Padding(0, 1)
+
+			lines = append(lines, fmt.Sprintf("  │ ⌨️  %s", hotkeyStyle.Render(item.Hot)))
+			lines = append(lines, sectionHeader.Render("  └───────────────┘"))
+			lines = append(lines, "")
+		}
+
+		// ═══════════ TAGS ═══════════
 		if len(item.Tags) > 0 {
-			lines = append(lines, lipgloss.NewStyle().
-				Foreground(lipgloss.Color(colors.textDim)).Render("  TAGS"))
+			lines = append(lines, sectionHeader.Render("  ┌─── TAGS ───┐"))
 
 			var tagLine strings.Builder
-			tagLine.WriteString("  ")
-			for _, tag := range item.Tags {
+			tagLine.WriteString("  │ ")
+			for i, tag := range item.Tags {
+				tagColors := []string{colors.success, colors.primary, colors.secondary, colors.accent}
+				tagColor := tagColors[i%len(tagColors)]
+
 				tagStyle := lipgloss.NewStyle().
-					Background(lipgloss.Color("#0F3D0F")).
-					Foreground(lipgloss.Color(colors.success)).
+					Background(lipgloss.Color(colors.bgDark)).
+					Foreground(lipgloss.Color(tagColor)).
 					Padding(0, 1)
-				tagLine.WriteString(tagStyle.Render(tag) + " ")
+				tagLine.WriteString(tagStyle.Render("#"+tag) + " ")
 			}
 			lines = append(lines, tagLine.String())
+			lines = append(lines, sectionHeader.Render("  └─────────────┘"))
 			lines = append(lines, "")
 		}
 
-		// Copy button
-		lines = append(lines, "")
+		// ═══════════ DANGER WARNING ═══════════
+		if item.Danger {
+			warningStyle := lipgloss.NewStyle().
+				Background(lipgloss.Color("#4A0000")).
+				Foreground(lipgloss.Color(colors.error)).
+				Bold(true).
+				Padding(0, 1)
 
-		// buttonY := m.layout.HeaderH + m.layout.TabsH + m.layout.SearchH + 2 + len(lines)
-		// Hitboxes calculated in recalcHitBoxes
+			lines = append(lines, "")
+			lines = append(lines, "  "+warningStyle.Render("⚠️  CAUTION: Admin/Elevated privileges required"))
+		}
+
+		// ═══════════ VERSION INFO ═══════════
+		if item.Since != "" {
+			versionStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color(colors.textMuted)).
+				Italic(true)
+			lines = append(lines, "")
+			lines = append(lines, versionStyle.Render(fmt.Sprintf("  📅 Added in %s", item.Since)))
+		}
+
+		// ═══════════ COPY BUTTON ═══════════
+		lines = append(lines, "")
+		lines = append(lines, "")
 
 		var btn string
 		if m.copied {
-			btn = lipgloss.NewStyle().
+			btnStyle := lipgloss.NewStyle().
 				Background(lipgloss.Color("#064E3B")).
 				Foreground(lipgloss.Color(colors.success)).
 				Bold(true).
-				Padding(0, 2).
-				Render("  ✓ Copied to clipboard!  ")
+				Padding(0, 3)
+			btn = btnStyle.Render("  ✓ Copied to Clipboard!  ")
 		} else if m.hoverBtn == "copy" {
-			btn = lipgloss.NewStyle().
+			// Animated hover state
+			phase := m.frame % len(pulse)
+			pulseChar := pulse[phase]
+
+			btnStyle := lipgloss.NewStyle().
 				Background(lipgloss.Color(grad[0])).
 				Foreground(lipgloss.Color("#000000")).
 				Bold(true).
-				Padding(0, 2).
-				Render("  📋 Click to Copy  ")
+				Padding(0, 3)
+			btn = btnStyle.Render(fmt.Sprintf(" %s Click to Copy %s ", pulseChar, pulseChar))
 		} else {
-			btn = lipgloss.NewStyle().
+			btnStyle := lipgloss.NewStyle().
 				Background(lipgloss.Color(colors.surfaceHL)).
 				Foreground(lipgloss.Color(grad[0])).
-				Padding(0, 2).
-				Render("  📋 Press Enter to Copy  ")
+				Padding(0, 3)
+			btn = btnStyle.Render("  📋 Press Enter to Copy  ")
 		}
 		lines = append(lines, "  "+btn)
 
-		// Usage tip
+		// Tips
 		lines = append(lines, "")
-		lines = append(lines, lipgloss.NewStyle().
+		tipStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(colors.textMuted)).
-			Italic(true).
-			Render("  💡 Double-click item to copy"))
+			Italic(true)
+		lines = append(lines, tipStyle.Render("  💡 Double-click or Enter to copy"))
+		lines = append(lines, tipStyle.Render("  🖱️  Scroll to navigate"))
+
 	} else {
+		// No command selected
 		lines = append(lines, "")
-		lines = append(lines, lipgloss.NewStyle().
+		lines = append(lines, "")
+		emptyStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(colors.textMuted)).
-			Italic(true).
-			Render("  No command selected"))
+			Italic(true)
+
+		emptyIcon := dots[m.frame%len(dots)]
+		lines = append(lines, emptyStyle.Render(fmt.Sprintf("  %s No command selected", emptyIcon)))
+		lines = append(lines, "")
+		lines = append(lines, emptyStyle.Render("  Select a command from the list"))
+		lines = append(lines, emptyStyle.Render("  to view detailed information"))
 	}
 
-	// Render lines
+	// Render content with animated borders
 	visible := height - 3
 	for i := 0; i < visible; i++ {
 		borderT := float64(i) / float64(visible)
@@ -1797,6 +2159,11 @@ func (m *Model) viewDetail() string {
 			pad := width - lineW - 2
 			if pad < 0 {
 				pad = 0
+				// Truncate if needed
+				if lineW > width-2 {
+					line = line[:width-5] + "..."
+					pad = 0
+				}
 			}
 			s.WriteString(line + strings.Repeat(" ", pad))
 		} else {
@@ -1807,26 +2174,32 @@ func (m *Model) viewDetail() string {
 	}
 
 	// Footer
-	s.WriteString(gradientStr("╰"+strings.Repeat("─", width-2)+"╯", cat.Gradient))
+	footerSparkle := sparkles[(m.frame+4)%len(sparkles)]
+	s.WriteString(gradientStr("╰"+strings.Repeat("─", width-4), cat.Gradient))
+	s.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(grad[0])).Render(footerSparkle))
+	s.WriteString(gradientStr("─╯", cat.Gradient))
 
 	return s.String()
 }
 
+
 func (m *Model) viewStatus() string {
+	cat := m.categories[m.catIndex]
+	// grad := getGradient(cat.Gradient) // Unused now
+
 	bgStyle := lipgloss.NewStyle().
 		Background(lipgloss.Color(colors.bgDark)).
 		Width(m.width)
 
-	// Hitboxes calculated in recalcHitBoxes
-
-	// Keybinds
+	// Left: Keybinds with icons
 	binds := []struct {
-		key, label, color string
+		key, label, icon, color string
 	}{
-		{"↑↓", "Nav", colors.primary},
-		{"←→", "Cat", colors.secondary},
-		{"/", "Find", colors.accent},
-		{"⏎", "Copy", colors.success},
+		{"↑↓", "Nav", "🎯", colors.primary},
+		{"←→", "Cat", "📂", colors.secondary},
+		{"/", "Find", "🔍", colors.accent},
+		{"⏎", "Copy", "📋", colors.success},
+		{"?", "Help", "❓", colors.warning},
 	}
 
 	var left strings.Builder
@@ -1840,114 +2213,244 @@ func (m *Model) viewStatus() string {
 			Foreground(lipgloss.Color(colors.textDim))
 
 		left.WriteString(keyStyle.Render(b.key))
-		left.WriteString(labelStyle.Render(" " + b.label + " "))
+		left.WriteString(labelStyle.Render(" "+b.label+" "))
 	}
 
-	// Right side
-	cat := m.categories[m.catIndex]
+	// Center: Toast notification
+	var center string
+	if m.toast != "" && m.toastTimer > 0 {
+		toastColor := colors.text
+		toastIcon := "ℹ️"
+		switch m.toastType {
+		case "success":
+			toastColor = colors.success
+			toastIcon = "✓"
+		case "error":
+			toastColor = colors.error
+			toastIcon = "✗"
+		case "warning":
+			toastColor = colors.warning
+			toastIcon = "⚠"
+		}
+
+		toastStyle := lipgloss.NewStyle().
+			Background(lipgloss.Color(colors.surface)).
+			Foreground(lipgloss.Color(toastColor)).
+			Bold(true).
+			Padding(0, 2)
+
+		center = toastStyle.Render(fmt.Sprintf("%s %s", toastIcon, m.toast))
+	}
+
+	// Right: Category info with animation
 	spin := spinners[m.frame%len(spinners)]
 
-	rightStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colors.textDim))
+	// Mini progress bar
+	miniProgress := animatedBar(m.catIndex+1, len(m.categories), 8, m.frame)
+
 	helpStyle := lipgloss.NewStyle()
 	if m.hoverBtn == "help" {
 		helpStyle = helpStyle.
 			Background(lipgloss.Color(colors.surface)).
-			Foreground(lipgloss.Color(colors.warning))
+			Foreground(lipgloss.Color(colors.warning)).
+			Bold(true)
 	} else {
 		helpStyle = helpStyle.Foreground(lipgloss.Color(colors.textMuted))
 	}
 
-	right := fmt.Sprintf("%s %s %s  %s",
+	catInfo := fmt.Sprintf("%s %s %d/%d %s",
 		gradientStr(spin, cat.Gradient),
 		cat.Icon,
-		rightStyle.Render(cat.Name),
-		helpStyle.Render("? Help"),
+		m.catIndex+1,
+		len(m.categories),
+		miniProgress,
 	)
 
+	right := fmt.Sprintf("%s  %s",
+		catInfo,
+		helpStyle.Render("[?] Help"),
+	)
+
+	// Layout
 	leftStr := left.String()
 	leftW := lipgloss.Width(leftStr)
+	centerW := lipgloss.Width(center)
 	rightW := lipgloss.Width(right)
-	pad := m.width - leftW - rightW - 4
-	if pad < 0 {
-		pad = 0
+
+	totalW := leftW + centerW + rightW
+	pad := m.width - totalW - 4
+
+	leftPad := pad / 2
+	rightPad := pad - leftPad
+
+	if leftPad < 0 {
+		leftPad = 0
+	}
+	if rightPad < 0 {
+		rightPad = 0
 	}
 
-	return bgStyle.Render(fmt.Sprintf("  %s%s%s  ", leftStr, strings.Repeat(" ", pad), right))
+	statusLine := fmt.Sprintf("  %s%s%s%s%s  ",
+		leftStr,
+		strings.Repeat(" ", leftPad),
+		center,
+		strings.Repeat(" ", rightPad),
+		right)
+
+	return bgStyle.Render(statusLine)
 }
 
+
 func (m Model) viewHelp() string {
-	width := 60
+	width := 70
 
 	var help strings.Builder
-	help.WriteString(gradientStr("╔══════════════════ ⌨️  CONTROLS ══════════════════╗", "neon") + "\n")
 
-	binds := []struct {
-		key, desc string
+	// Animated header
+	headerAnim := sparkles[m.frame%len(sparkles)]
+	help.WriteString(gradientStr(fmt.Sprintf("╔════════════════ %s KEYBOARD CONTROLS %s ════════════════╗", headerAnim, headerAnim), "rainbow") + "\n")
+
+	// Navigation section
+	sections := []struct {
+		title string
+		grad  string
+		binds []struct{ key, desc string }
 	}{
-		{"↑ / k", "Move up"},
-		{"↓ / j", "Move down"},
-		{"← / h", "Previous category"},
-		{"→ / l", "Next category"},
-		{"1-9", "Jump to category"},
-		{"Tab", "Next category"},
-		{"Shift+Tab", "Previous category"},
-		{"/ or Ctrl+F", "Search"},
-		{"Enter / Space", "Copy command"},
-		{"g / Home", "Go to first"},
-		{"G / End", "Go to last"},
-		{"PgUp / PgDn", "Page scroll"},
-		{"Esc", "Clear search"},
-		{"? / F1", "Toggle help"},
-		{"q", "Quit"},
+		{
+			title: "🎯 NAVIGATION",
+			grad:  "neon",
+			binds: []struct{ key, desc string }{
+				{"↑ / k", "Move selection up"},
+				{"↓ / j", "Move selection down"},
+				{"← / h", "Previous category"},
+				{"→ / l", "Next category"},
+				{"g / Home", "Jump to first item"},
+				{"G / End", "Jump to last item"},
+				{"PgUp/PgDn", "Scroll by page"},
+			},
+		},
+		{
+			title: "📂 CATEGORIES",
+			grad:  "sunset",
+			binds: []struct{ key, desc string }{
+				{"1-9", "Quick jump to category"},
+				{"Tab", "Next category"},
+				{"Shift+Tab", "Previous category"},
+			},
+		},
+		{
+			title: "🔍 SEARCH",
+			grad:  "ocean",
+			binds: []struct{ key, desc string }{
+				{"/ or Ctrl+F", "Open search"},
+				{"Esc", "Close search / Clear"},
+				{"Enter", "Confirm search"},
+			},
+		},
+		{
+			title: "📋 ACTIONS",
+			grad:  "matrix",
+			binds: []struct{ key, desc string }{
+				{"Enter / Space", "Copy command to clipboard"},
+				{"? / F1", "Toggle this help"},
+				{"q / Ctrl+C", "Quit application"},
+			},
+		},
 	}
 
-	for _, b := range binds {
-		keyStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colors.warning)).
+	for _, section := range sections {
+		// Section header
+		help.WriteString(gradientStr("║", "rainbow"))
+		help.WriteString(gradientStr(fmt.Sprintf(" ─── %s ", section.title), section.grad))
+		pad := width - lipgloss.Width(section.title) - 12
+		help.WriteString(strings.Repeat("─", pad))
+		help.WriteString(gradientStr("║", "rainbow") + "\n")
+
+		for _, b := range section.binds {
+			help.WriteString(gradientStr("║", "rainbow"))
+
+			keyStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color(colors.warning)).
+				Bold(true).
+				Width(16)
+			descStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color(colors.text))
+
+			line := fmt.Sprintf("   %s %s", keyStyle.Render(b.key), descStyle.Render(b.desc))
+			lineW := lipgloss.Width(line)
+			linePad := width - lineW - 2
+			if linePad < 0 {
+				linePad = 0
+			}
+
+			help.WriteString(line + strings.Repeat(" ", linePad))
+			help.WriteString(gradientStr("║", "rainbow") + "\n")
+		}
+		help.WriteString(gradientStr("║", "rainbow") + strings.Repeat(" ", width-2) + gradientStr("║", "rainbow") + "\n")
+	}
+
+	// Mouse section
+	help.WriteString(gradientStr("║", "rainbow"))
+	help.WriteString(gradientStr(" ─── 🖱️  MOUSE CONTROLS ", "cosmic"))
+	help.WriteString(strings.Repeat("─", width-28))
+	help.WriteString(gradientStr("║", "rainbow") + "\n")
+
+	mouseBinds := []struct{ action, desc string }{
+		{"Click", "Select item or category"},
+		{"Double-click", "Copy command instantly"},
+		{"Hover", "Highlight interactive elements"},
+		{"Scroll wheel", "Navigate list up/down"},
+	}
+
+	for _, mb := range mouseBinds {
+		help.WriteString(gradientStr("║", "rainbow"))
+
+		actionStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(colors.primary)).
 			Bold(true).
 			Width(16)
 		descStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(colors.text))
 
-		help.WriteString(gradientStr("║", "neon"))
-		line := fmt.Sprintf(" %s %s", keyStyle.Render(b.key), descStyle.Render(b.desc))
-		pad := width - lipgloss.Width(line) - 2
-		if pad < 0 {
-			pad = 0
+		line := fmt.Sprintf("   %s %s", actionStyle.Render(mb.action), descStyle.Render(mb.desc))
+		lineW := lipgloss.Width(line)
+		linePad := width - lineW - 2
+		if linePad < 0 {
+			linePad = 0
 		}
-		help.WriteString(line + strings.Repeat(" ", pad))
-		help.WriteString(gradientStr("║", "neon") + "\n")
+
+		help.WriteString(line + strings.Repeat(" ", linePad))
+		help.WriteString(gradientStr("║", "rainbow") + "\n")
 	}
 
-	help.WriteString(gradientStr("║", "neon") + strings.Repeat(" ", width-2) + gradientStr("║", "neon") + "\n")
+	// Footer with animation
+	help.WriteString(gradientStr("║", "rainbow") + strings.Repeat(" ", width-2) + gradientStr("║", "rainbow") + "\n")
 
-	mouseHelp := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colors.primary)).
-		Bold(true).
-		Render("🖱️  Click • Double-click • Hover • Scroll")
+	// Animated close hint
+	phase := m.frame % len(pulse)
+	pulseChar := pulse[phase]
 
-	help.WriteString(gradientStr("║", "neon"))
-	help.WriteString("  " + mouseHelp)
-	pad := width - lipgloss.Width(mouseHelp) - 4
-	if pad < 0 {
-		pad = 0
-	}
-	help.WriteString(strings.Repeat(" ", pad))
-	help.WriteString(gradientStr("║", "neon") + "\n")
-
-	help.WriteString(gradientStr("║", "neon") + strings.Repeat(" ", width-2) + gradientStr("║", "neon") + "\n")
-
-	closeHint := lipgloss.NewStyle().
+	closeHint := fmt.Sprintf("%s Press any key to close %s", pulseChar, pulseChar)
+	closeStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(colors.textMuted)).
-		Italic(true).
-		Render("Press any key to close")
+		Italic(true)
 
-	help.WriteString(gradientStr("║", "neon"))
-	pad = (width - lipgloss.Width(closeHint) - 2) / 2
-	help.WriteString(strings.Repeat(" ", pad) + closeHint + strings.Repeat(" ", width-pad-lipgloss.Width(closeHint)-2))
-	help.WriteString(gradientStr("║", "neon") + "\n")
+	help.WriteString(gradientStr("║", "rainbow"))
+	hintPad := (width - lipgloss.Width(closeHint) - 2) / 2
+	help.WriteString(strings.Repeat(" ", hintPad))
+	help.WriteString(closeStyle.Render(closeHint))
+	help.WriteString(strings.Repeat(" ", width-hintPad-lipgloss.Width(closeHint)-2))
+	help.WriteString(gradientStr("║", "rainbow") + "\n")
 
-	help.WriteString(gradientStr("╚"+strings.Repeat("═", width-2)+"╝", "neon"))
+	// Bottom border
+	help.WriteString(gradientStr("╚"+strings.Repeat("═", width-2)+"╝", "rainbow"))
+
+	// Stats footer
+	stats := fmt.Sprintf("\n📊 Total: %d commands in %d categories │ Session: %s",
+		m.totalCmds, len(m.categories), formatUptime(time.Since(m.startTime)))
+	help.WriteString(lipgloss.NewStyle().
+		Foreground(lipgloss.Color(colors.textDim)).
+		Render(lipgloss.PlaceHorizontal(width, lipgloss.Center, stats)))
 
 	box := lipgloss.NewStyle().
 		Background(lipgloss.Color(colors.bgDark)).
@@ -1962,6 +2465,7 @@ func (m Model) viewHelp() string {
 		lipgloss.WithWhitespaceBackground(lipgloss.Color("#000000")),
 	)
 }
+
 
 // ══════════════════════════════════════════════════════════════════
 //                         HELPERS

@@ -273,6 +273,21 @@ var statusIcons = map[string]string{
 	"pulse":    "💓",
 }
 
+const (
+	processNameMaxLen = 20
+	serviceNameMaxLen = 40
+)
+
+func truncate(s string, maxLen int) string {
+	if len(s) > maxLen {
+		if maxLen > 3 {
+			return s[:maxLen-3] + "..."
+		}
+		return s[:maxLen]
+	}
+	return s
+}
+
 // ══════════════════════════════════════════════════════════════════
 //                         DATA STRUCTURES
 // ══════════════════════════════════════════════════════════════════
@@ -579,13 +594,8 @@ netOutHistory []float64
 	notifications []Notification
 	notifyFade    int
 
-	// View mode
-detailMode    bool
-chartMode     string // "sparkline", "bar", "area"
-
-	// Search/Filter
-	filterText    string
-	filterActive  bool
+	// View mode (Internal state)
+	lastUpdate    time.Time
 }
 
 type Notification struct {
@@ -603,6 +613,9 @@ type sysInfoMsg SystemInfo
 // ══════════════════════════════════════════════════════════════════
 
 func makeSparkline(values []float64, width int) string {
+	if width <= 0 {
+		return ""
+	}
 	if len(values) == 0 {
 		return strings.Repeat("▁", width)
 	}
@@ -1499,7 +1512,6 @@ func initialModel() *Model {
 		startTime:   time.Now(),
 		themeNames:  themeNames,
 		borderStyle: "rounded",
-		chartMode:   "sparkline",
 		cpuHistory:  make([]float64, 0, 60),
 		memHistory:  make([]float64, 0, 60),
 	}
@@ -1514,7 +1526,7 @@ func (m *Model) Init() tea.Cmd {
 }
 
 func tickCmd() tea.Cmd {
-	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
+	return tea.Tick(200*time.Millisecond, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
@@ -1682,8 +1694,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.notifications = newNotifs
 
-		// Periodic data refresh (every 30 seconds)
-		if m.frame%300 == 0 && !m.loading {
+		// Periodic data refresh (every 60 seconds at 5fps)
+		if m.frame%600 == 0 && !m.loading {
 			m.loading = true
 			m.loadingStep = 0
 			return m, fetchSysInfo
@@ -1804,24 +1816,16 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.borderStyle = borderNames[(currentIdx+1)%len(borderNames)]
 
-	case "c": // Chart mode toggle
-		modes := []string{"sparkline", "bar", "area"}
-		currentIdx := 0
-		for i, mode := range modes {
-			if mode == m.chartMode {
-				currentIdx = i
-				break
-			}
-		}
-		m.chartMode = modes[(currentIdx+1)%len(modes)]
-
-	case "d": // Toggle detail mode
-		m.detailMode = !m.detailMode
-
 	case "e":
 		m.exported = true
-		m.exportFade = 30
-		exportReport(m.sysInfo)
+		m.exportFade = 80
+		filename := exportReport(m.sysInfo)
+		m.notifications = append(m.notifications, Notification{
+			Message:   fmt.Sprintf("✓ Exported to %s", filename),
+			Type:      "success",
+			Timestamp: time.Now(),
+			Fade:      80,
+		})
 
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 		idx, _ := strconv.Atoi(msg.String())
@@ -1831,13 +1835,12 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "?", "f1": // Help
-		// Could add a help overlay
-
-	case "esc":
-		if m.filterActive {
-			m.filterActive = false
-			m.filterText = ""
-		}
+		m.notifications = append(m.notifications, Notification{
+			Message:   "Keys: ←→ tabs, ↑↓ scroll, R refresh, T theme, B border, E export, Q quit",
+			Type:      "info",
+			Timestamp: time.Now(),
+			Fade:      150,
+		})
 	}
 
 	return m, nil
@@ -1881,8 +1884,14 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.hoverBtn == "export" {
 			m.exported = true
-			m.exportFade = 30
-			exportReport(m.sysInfo)
+			m.exportFade = 80
+			filename := exportReport(m.sysInfo)
+			m.notifications = append(m.notifications, Notification{
+				Message:   fmt.Sprintf("✓ Exported to %s", filename),
+				Type:      "success",
+				Timestamp: time.Now(),
+				Fade:      80,
+			})
 		}
 
 	case tea.MouseWheelUp:
@@ -1898,7 +1907,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func exportReport(info SystemInfo) {
+func exportReport(info SystemInfo) string {
 	// Create report file
 	homeDir, _ := os.UserHomeDir()
 	filename := fmt.Sprintf("%s/Desktop/SystemReport_%s.txt",
@@ -1964,6 +1973,7 @@ NETWORK ADAPTERS
 	)
 
 	os.WriteFile(filename, []byte(report), 0644)
+	return filename
 }
 
 func formatDisksReport(disks []DiskInfo) string {
@@ -2010,26 +2020,58 @@ func (m *Model) View() string {
 	// Reset hitboxes for the current frame
 	m.hitBoxes = make([]HitBox, 0)
 
+	notifStr := m.renderNotifications()
+	notifHeight := lipgloss.Height(notifStr)
+
 	// Render sections and track heights
 	headerStr := m.renderHeader()
 	headerHeight := lipgloss.Height(headerStr)
 
-	tabsStr := m.renderTabs(headerHeight)
+	tabsStr := m.renderTabs(headerHeight + notifHeight)
 	tabsHeight := lipgloss.Height(tabsStr)
 
-	contentHeight := m.height - headerHeight - tabsHeight - 3 // 3 for footer and padding
+	contentHeight := m.height - headerHeight - tabsHeight - 3 - notifHeight // 3 for footer and padding
 	if contentHeight < 10 { contentHeight = 10 }
 
-	contentStr := m.renderContent(headerHeight + tabsHeight, contentHeight)
+	contentStr := m.renderContent(headerHeight + tabsHeight + notifHeight, contentHeight)
 	
 	footerStr := m.renderFooter()
 
 	return lipgloss.JoinVertical(lipgloss.Left,
+		notifStr,
 		headerStr,
 		tabsStr,
 		contentStr,
 		footerStr,
 	)
+}
+
+func (m *Model) renderNotifications() string {
+	if len(m.notifications) == 0 {
+		return ""
+	}
+
+	var s strings.Builder
+	for _, n := range m.notifications {
+		color := currentTheme.Info
+		switch n.Type {
+		case "success":
+			color = currentTheme.Success
+		case "warning":
+			color = currentTheme.Warning
+		case "error":
+			color = currentTheme.Error
+		}
+
+		style := lipgloss.NewStyle().
+			Background(lipgloss.Color(color)).
+			Foreground(lipgloss.Color("#000000")).
+			Padding(0, 1).
+			Bold(true)
+
+		s.WriteString(lipgloss.PlaceHorizontal(m.width, lipgloss.Center, style.Render(n.Message)) + "\n")
+	}
+	return s.String()
 }
 
 func (m *Model) renderLoading() string {
@@ -2043,8 +2085,8 @@ func (m *Model) renderLoading() string {
   ║   ███████║   ██║   ███████║   ██║   ███████╗██║ ╚═╝ ██║                  ║
   ║   ╚══════╝   ╚═╝   ╚══════╝   ╚═╝   ╚══════╝╚═╝     ╚═╝                  ║
   ║                                                                          ║
-  ║   ██████╗  █████╗ ███████╗██╗  ██╗██████╗  ██████╗  █████╗ ██████╗ ██████╗║
-  ║   ██╔══██╗██╔══██╗██╔════╝██║  ██║██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗
+  ║   ██████╗  █████╗ ███████╗██╗  ██╗██████╗  ██████╗  █████╗ ██████╗ ██████╗ ║
+  ║   ██╔══██╗██╔══██╗██╔════╝██║  ██║██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗║
   ║   ██║  ██║███████║███████╗███████║██████╔╝██║   ██║███████║██████╔╝██║  ██║║
   ║   ██║  ██║██╔══██║╚════██║██╔══██║██╔══██╗██║   ██║██╔══██║██╔══██╗██║  ██║║
   ║   ██████╔╝██║  ██║███████║██║  ██║██████╔╝╚██████╔╝██║  ██║██║  ██║██████╔╝║
@@ -2120,7 +2162,10 @@ func (m *Model) renderLoading() string {
 		fmt.Sprintf("%s %s", currentPhase.icon, msgStyle.Render(currentPhase.message))) + "\n\n")
 
 	// Fancy progress bar
-	progress := (m.loadingStep * 10) % 100
+	progress := m.loadingStep * 10
+	if progress > 100 {
+		progress = 100
+	}
 	barWidth := 50
 
 	var progressBar strings.Builder
@@ -2292,8 +2337,12 @@ func (m *Model) renderContent(yOffset, height int) string {
 
 	// Apply scroll
 	lines := strings.Split(content, "\n")
-	if m.scrollY >= len(lines) {
-		m.scrollY = max(0, len(lines)-1)
+	maxScroll := len(lines) - height
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.scrollY > maxScroll {
+		m.scrollY = maxScroll
 	}
 	end := min(m.scrollY+height, len(lines))
 	visibleLines := lines[m.scrollY:end]
@@ -2308,67 +2357,12 @@ func (m *Model) renderContent(yOffset, height int) string {
 		visibleLines = append(visibleLines, scrollIndicator)
 	}
 
+	// Pad with empty lines if content is too short to fill available height
+	for len(visibleLines) < height {
+		visibleLines = append(visibleLines, "")
+	}
+
 	return strings.Join(visibleLines, "\n")
-}
-
-func (m Model) renderOverview() string {
-	info := m.sysInfo
-	var s strings.Builder
-
-	// System box
-	s.WriteString(m.renderBox("🖥️ SYSTEM OVERVIEW", currentTheme.Success, func() string {
-		var content strings.Builder
-		content.WriteString(m.renderInfoLine("Computer", info.Hostname, currentTheme.Accent))
-		content.WriteString(m.renderInfoLine("User", info.Username, currentTheme.Primary))
-		content.WriteString(m.renderInfoLine("OS", info.OS, currentTheme.Text))
-		content.WriteString(m.renderInfoLine("Platform", info.Platform, currentTheme.Text))
-		content.WriteString(m.renderInfoLine("Kernel", info.Kernel, currentTheme.TextMuted))
-		content.WriteString(m.renderInfoLine("Arch", info.Arch, currentTheme.Info))
-		content.WriteString(m.renderInfoLine("Uptime", formatDuration(info.Uptime), currentTheme.Warning))
-		content.WriteString(m.renderInfoLine("Processes", fmt.Sprintf("%d", info.Procs), currentTheme.Primary))
-		return content.String()
-	}))
-
-	// Hardware Info box (New)
-	s.WriteString("\n")
-	s.WriteString(m.renderBox("🛠️ HARDWARE DETAILS", currentTheme.Info, func() string {
-		var content strings.Builder
-		if info.BoardName != "" {
-			content.WriteString(m.renderInfoLine("Mainboard", info.BoardVendor+" "+info.BoardName, currentTheme.Secondary))
-		}
-		if info.BiosVersion != "" {
-			content.WriteString(m.renderInfoLine("BIOS Ver", info.BiosVersion, currentTheme.TextMuted))
-		}
-		if info.ProductSerial != "" {
-			content.WriteString(m.renderInfoLine("Serial #", info.ProductSerial, currentTheme.TextMuted))
-		}
-		if len(info.GPUs) > 0 {
-			gpu := info.GPUs[0]
-			content.WriteString(m.renderInfoLine("GPU", gpu.Name, currentTheme.GPU))
-			content.WriteString(m.renderInfoLine("VRAM", formatBytes(gpu.VRAM), currentTheme.Text))
-			content.WriteString(m.renderInfoLine("Driver", gpu.Driver, currentTheme.TextMuted))
-		}
-		return content.String()
-	}))
-
-	// Quick stats
-	s.WriteString("\n")
-	s.WriteString(m.renderBox("📊 QUICK STATS", currentTheme.Warning, func() string {
-		var content strings.Builder
-
-		// CPU gauge
-		content.WriteString(m.renderGauge("CPU", info.CPUUsage, currentTheme.CPU))
-		// RAM gauge
-		content.WriteString(m.renderGauge("RAM", info.MemPercent, currentTheme.RAM))
-		// Primary disk
-		if len(info.Disks) > 0 {
-			content.WriteString(m.renderGauge("Disk", info.Disks[0].Percent, currentTheme.Disk))
-		}
-
-		return content.String()
-	}))
-
-	return s.String()
 }
 
 func (m Model) renderCPU() string {
@@ -2499,11 +2493,9 @@ func (m Model) renderNetwork() string {
 			content.WriteString("\n")
 			sentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.Success))
 			recvStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.Primary))
-			content.WriteString(fmt.Sprintf("  Traffic: %s ▲ %s  %s ▼ %s\n",
+			content.WriteString(fmt.Sprintf("  Traffic: %s ▲  %s ▼\n",
 				sentStyle.Render(formatBytes(net.BytesSent)),
-				sentStyle.Render(""),
-				recvStyle.Render(formatBytes(net.BytesRecv)),
-				recvStyle.Render("")))
+				recvStyle.Render(formatBytes(net.BytesRecv))))
 
 			return content.String()
 		}))
@@ -2522,10 +2514,7 @@ func (m Model) renderProcesses() string {
 		var content strings.Builder
 		for i, p := range info.TopCPU {
 			bar := makeProgressBar(p.CPU, 15, "fancy")
-			name := p.Name
-			if len(name) > 20 {
-				name = name[:17] + "..."
-			}
+			name := truncate(p.Name, processNameMaxLen)
 			content.WriteString(fmt.Sprintf("  %d. %-20s %s %.1f%%\n", i+1, name, bar, p.CPU))
 		}
 		return content.String()
@@ -2538,10 +2527,7 @@ func (m Model) renderProcesses() string {
 		var content strings.Builder
 		for i, p := range info.TopMem {
 			bar := makeProgressBar(p.Memory, 15, "fancy")
-			name := p.Name
-			if len(name) > 20 {
-				name = name[:17] + "..."
-			}
+			name := truncate(p.Name, processNameMaxLen)
 			content.WriteString(fmt.Sprintf("  %d. %-20s %s %.1f MB\n", i+1, name, bar, p.MemMB))
 		}
 		return content.String()
@@ -2641,13 +2627,8 @@ func (m Model) renderUltraBox(title string, color string, contentFn func() strin
 		
 		lineWidth := lipgloss.Width(line)
 		
-		// Fill or Trim
-		var displayLine string
-		if lineWidth > width-4 {
-			displayLine = line[:max(0, width-7)] + "..."
-		} else {
-			displayLine = line + strings.Repeat(" ", max(0, width-lineWidth-4))
-		}
+		// Just pad, don't unsafe truncate
+		displayLine := line + strings.Repeat(" ", max(0, width-lineWidth-4))
 
 		box.WriteString("  " + borderStyle.Render(border.Vertical) + " " + displayLine + " " + borderStyle.Render(border.Vertical) + "\n")
 	}
@@ -2757,7 +2738,11 @@ func (m *Model) renderFooter() string {
 	}
 
 	// Status area
-	spinner := ultraSpinners["hologram"][m.frame%len(ultraSpinners["hologram"])]
+	spinnerSlice, ok := ultraSpinners["hologram"]
+	spinner := "●"
+	if ok && len(spinnerSlice) > 0 {
+		spinner = spinnerSlice[m.frame%len(spinnerSlice)]
+	}
 	spinnerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.Primary))
 
 	updateTime := m.sysInfo.LastUpdate.Format("15:04:05")
@@ -2782,11 +2767,16 @@ func (m *Model) renderDashboard(yOffset int) string {
 	if info.HealthScore < 70 { healthColor = currentTheme.Warning }
 	if info.HealthScore < 50 { healthColor = currentTheme.Error }
 
+	padding := 3
+	if m.width < 60 {
+		padding = 1
+	}
+
 	bannerStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#000000")).
 		Background(lipgloss.Color(healthColor)).
 		Bold(true).
-		Padding(0, 3).
+		Padding(0, padding).
 		MarginBottom(1)
 
 	s.WriteString(lipgloss.PlaceHorizontal(m.width, lipgloss.Center, 
@@ -2825,10 +2815,17 @@ func (m *Model) renderDashboard(yOffset int) string {
 		// Calculate precise hitbox
 		rowIdx := i / cols
 		colIdx := i % cols
-		m.hitBoxes = append(m.hitBoxes, HitBox{
-			X: 2 + colIdx*(cardWidth+2), Y: yOffset + 3 + rowIdx*6, W: cardWidth, H: 5,
-			Type: "tab", Index: card.tabIdx,
-		})
+
+		// Account for scroll in hitbox calculation
+		// Dashboard content starts after header (yOffset) + banner (2 lines + 1 margin)
+		cardY := yOffset + 3 + rowIdx*6 - m.scrollY
+		// Only add hitbox if it's within the visible content area
+		if cardY >= yOffset && cardY < m.height-2 {
+			m.hitBoxes = append(m.hitBoxes, HitBox{
+				X: 2 + colIdx*(cardWidth+2), Y: cardY, W: cardWidth, H: 5,
+				Type: "tab", Index: card.tabIdx,
+			})
+		}
 
 		cardView := m.renderStatCard(card.icon, card.label, card.value, card.percent, card.color, card.spark, cardWidth)
 		currentRow = append(currentRow, cardView)
@@ -2939,9 +2936,11 @@ func (m Model) renderGPU() string {
 		s.WriteString(m.renderUltraBox(fmt.Sprintf("%s GPU %d: %s", gpuIcon, i, gpu.Name), currentTheme.GPU, func() string {
 			var content strings.Builder
 
-			// ASCII art for GPU
-			art := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.GPU)).Render(asciiArt["gpu"])
-			content.WriteString(art + "\n\n")
+			// ASCII art for GPU (only if wide enough)
+			if m.width > 80 {
+				art := lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.GPU)).Render(asciiArt["gpu"])
+				content.WriteString(art + "\n\n")
+			}
 
 			content.WriteString(m.renderInfoLine("Vendor", gpu.Vendor, currentTheme.Text))
 			content.WriteString(m.renderInfoLine("Driver", gpu.Driver, currentTheme.TextMuted))
@@ -3041,10 +3040,7 @@ func (m Model) renderSecurity() string {
 
 			for _, svc := range info.Services {
 				statusIcon := makeStatusIndicator(strings.ToLower(svc.Status), true, m.frame)
-				name := svc.DisplayName
-				if len(name) > 45 {
-					name = name[:42] + "..."
-				}
+				name := truncate(svc.DisplayName, serviceNameMaxLen)
 				content.WriteString(fmt.Sprintf("  %s %-45s\n", statusIcon, name))
 			}
 
